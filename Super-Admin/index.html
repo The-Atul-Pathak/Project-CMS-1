@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure custom colors and font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-500': '#3b82f6', // Blue-500
+                        'primary-600': '#2563eb', // Blue-600
+                        'secondary-100': '#f3f4f6', // Gray-100
+                    }
+                },
+            }
+        }
+    </script>
+    <style>
+        /* Apply Inter font and smooth transitions */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+        }
+        /* Custom focus style */
+        .input-focus:focus {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); /* Primary-500 with opacity */
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-secondary-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Login Card Container -->
+    <div class="w-full max-w-sm">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-200">
+            
+            <div class="text-center mb-6 sm:mb-8">
+                <!-- Icon (using a simple emoji for visual flair) -->
+                <p class="text-4xl mb-2">🔑</p>
+                <h1 class="text-2xl font-bold text-gray-900">Admin Portal Login</h1>
+                <p class="text-sm text-gray-500 mt-1">Enter your credentials to continue.</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="space-y-6">
+                
+                <!-- Admin ID Field -->
+                <div>
+                    <label for="adminId" class="block text-sm font-medium text-gray-700 mb-1">Admin ID</label>
+                    <input 
+                        type="text" 
+                        id="adminId" 
+                        name="adminId" 
+                        required 
+                        placeholder="e.g., admin_user"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 transition duration-150 ease-in-out input-focus outline-none"
+                    >
+                </div>
+
+                <!-- Password Field -->
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required 
+                        placeholder="••••••••"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 transition duration-150 ease-in-out input-focus outline-none"
+                    >
+                </div>
+
+                <!-- Login Button -->
+                <div>
+                    <button 
+                        type="button"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition duration-150 ease-in-out transform hover:scale-[1.01] active:scale-[0.99]"
+                        onclick="login(event)"
+                    >
+                        Login
+                    </button>
+                    <p id="result_1" class="mt-2 text-center text-red-600" role="alert" aria-live="assertive"></p>
+                </div>
+                <script>
+                async function login(event) {
+                event.preventDefault();
+
+                const admin_id = document.getElementById("adminId").value;
+                const password = document.getElementById("password").value;
+
+                const res = await fetch("http://127.0.0.1:8000/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ admin_id, password })
+                });
+
+                const data = await res.json();
+
+                if (data.access_token) {
+                    localStorage.setItem("token", data.access_token);
+                    window.location.href = "main.html";
+                } else {
+                    document.getElementById("result_1").textContent = data.error || "Login failed";
+                }
+                }
+                </script>
+            </form>
+
+            <!-- Status/Error Message Area -->
+
+        </div>
+
+        <!-- Footer Text -->
+        <p id="statusMessage" class="mt-6 text-center text-xs text-gray-500">
+        </p>
+    </div>
+
+</body>
+</html>
