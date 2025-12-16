@@ -12,6 +12,31 @@
     </script>
 </head>
 <body>
-    
+    <a href="admin_management.html">Go to Admin Management Page</a>
+
+    <button onclick="logout()"
+    class="text-red-600">
+    Logout
+    </button>
+
+    <script>
+    async function logout() {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+        await fetch("http://127.0.0.1:8000/logout", {
+        method: "POST",
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+        });
+    }
+
+    localStorage.removeItem("token");
+    window.location.href = "index.html";
+    }
+    </script>
+
+
 </body>
 </html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+  <h1 class="text-2xl font-bold mb-6">Admin Management</h1>
+    <button onclick="logout()"
+    class="text-red-600">
+    Logout
+    </button>
+
+
+  <!-- ADD ADMIN -->
+  <div class="bg-white p-4 rounded shadow mb-6">
+    <h2 class="text-lg font-semibold mb-4">Add Admin</h2>
+
+    <input id="name" placeholder="Name"
+      class="border p-2 mr-2 rounded" />
+    <input id="email" placeholder="Email"
+      class="border p-2 mr-2 rounded" />
+    <input id="password" type="password" placeholder="Password"
+      class="border p-2 mr-2 rounded" />
+
+    <button onclick="addAdmin()"
+      class="bg-blue-600 text-white px-4 py-2 rounded">
+      Add Admin
+    </button>
+
+    <p id="addResult" class="mt-2 text-sm"></p>
+  </div>
+
+  <!-- ADMIN LIST -->
+  <div class="bg-white p-4 rounded shadow">
+    <h2 class="text-lg font-semibold mb-4">Admins</h2>
+
+    <table class="w-full border">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="p-2">ID</th>
+          <th class="p-2">Name</th>
+          <th class="p-2">Email</th>
+          <th class="p-2">Role</th>
+          <th class="p-2">Action</th>
+        </tr>
+      </thead>
+      <tbody id="adminTable"></tbody>
+    </table>
+  </div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "index.html";
+}
+
+// ---------------- LOAD ADMINS ----------------
+async function loadAdmins() {
+  const res = await fetch(`${API}/admins`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const admins = await res.json();
+
+  const table = document.getElementById("adminTable");
+  table.innerHTML = "";
+
+  admins.forEach(a => {
+    table.innerHTML += `
+      <tr class="border-t">
+        <td class="p-2">${a[0]}</td>
+        <td class="p-2">${a[1]}</td>
+        <td class="p-2">${a[2]}</td>
+        <td class="p-2">${a[3]}</td>
+        <td class="p-2">
+          <button onclick="removeAdmin(${a[0]})"
+            class="text-red-600">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+// ---------------- ADD ADMIN ----------------
+async function addAdmin() {
+  const name = document.getElementById("name").value;
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const res = await fetch(`${API}/admins`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({ name, email, password })
+  });
+
+  const data = await res.json();
+  document.getElementById("addResult").innerText =
+    data.message || data.detail;
+
+  loadAdmins();
+}
+
+// ---------------- REMOVE ADMIN ----------------
+async function removeAdmin(id) {
+  if (!confirm("Are you sure?")) return;
+
+  await fetch(`${API}/admins/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  loadAdmins();
+}
+
+// ---------------- LOGOUT ----------------
+async function logout() {
+  const token = localStorage.getItem("token");
+
+  if (token) {
+    await fetch("http://127.0.0.1:8000/logout", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token
+      }
+    });
+  }
+
+  localStorage.removeItem("token");
+  window.location.href = "index.html";
+}
+
+// INIT
+loadAdmins();
+</script>
+
+</body>
+</html>
