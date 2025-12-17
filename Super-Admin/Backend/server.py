@@ -8,6 +8,8 @@ from jose import jwt
 from fastapi import Request
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
+
 
 
 app = FastAPI()
@@ -20,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#---------------- MODELS ----------------
 class UserLogin(BaseModel):
     admin_id: str
     password: str
@@ -27,6 +30,28 @@ class CreateAdmin(BaseModel):
     name: str
     email: str
     password: str
+class CompanyCreate(BaseModel):
+    company_name: str
+    legal_name: Optional[str] = None
+    domain: Optional[str] = None
+    industry: Optional[str] = None
+    employee_size_range: Optional[str] = None
+class CompanyContactCreate(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    designation: Optional[str] = None
+    is_primary: bool = True
+class CompanyUpdate(BaseModel):
+    company_name: str
+    legal_name: Optional[str] = None
+    domain: Optional[str] = None
+    industry: Optional[str] = None
+    employee_size_range: Optional[str] = None
+    status: str
+
+
+#---------------- AUTH HELPERS ----------------
 
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
@@ -130,6 +155,8 @@ def login(user: UserLogin, request: Request):
     })
 
     return {"access_token": token}
+
+#---------------- ADMIN MANAGEMENT ----------------
 
 @app.post("/admins")
 def add_admin(
@@ -249,3 +276,141 @@ def logout(current=Depends(get_current_admin)):
     conn.close()
 
     return {"message": "Logged out successfully"}
+
+@app.post("/companies")
+def add_company(
+    company: CompanyCreate,
+    contact: CompanyContactCreate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] not in ["SUPER_ADMIN", "SUPPORT"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO companies
+        (company_name, legal_name, domain, industry, employee_size_range)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            company.company_name,
+            company.legal_name,
+            company.domain,
+            company.industry,
+            company.employee_size_range
+        )
+    )
+    company_id = cur.fetchone()[0]
+
+    cur.execute(
+        """
+        INSERT INTO company_contacts
+        (company_id, name, email, phone, designation, is_primary)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            company_id,
+            contact.name,
+            contact.email,
+            contact.phone,
+            contact.designation,
+            contact.is_primary
+        )
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Company added successfully", "company_id": company_id}
+
+@app.get("/companies")
+def list_companies(current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, company_name, industry, status, onboarding_status, created_at
+        FROM companies
+        ORDER BY created_at DESC
+    """)
+    companies = cur.fetchall()
+
+    cur.close()
+    conn.close()
+    return companies
+
+@app.get("/companies/{company_id}")
+def get_company(company_id: int, current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, company_name, legal_name, domain,
+               industry, employee_size_range, status
+        FROM companies
+        WHERE id = %s
+    """, (company_id,))
+
+    company = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    return {
+        "id": company[0],
+        "company_name": company[1],
+        "legal_name": company[2],
+        "domain": company[3],
+        "industry": company[4],
+        "employee_size_range": company[5],
+        "status": company[6],
+    }
+
+
+@app.put("/companies/{company_id}")
+def update_company(
+    company_id: int,
+    company: CompanyUpdate,
+    current=Depends(get_current_admin)
+):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE companies
+        SET company_name = %s,
+            legal_name = %s,
+            domain = %s,
+            industry = %s,
+            employee_size_range = %s,
+            status = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """,
+        (
+            company.company_name,
+            company.legal_name,
+            company.domain,
+            company.industry,
+            company.employee_size_range,
+            company.status,
+            company_id
+        )
+    )
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Company updated successfully"}

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Companies Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+    <h1 class="text-2xl font-bold mb-6">Companies Management</h1>
+
+    <div class="bg-white p-4 rounded shadow mb-6">
+        <h2 class="text-lg font-semibold mb-4">Add Company</h2>
+
+        <div class="mb-4">
+            <input id="company_name" placeholder="Company Name" class="border p-2 mr-2 rounded mb-2" />
+            <input id="industry" placeholder="Industry" class="border p-2 mr-2 rounded mb-2" />
+            <input id="domain" placeholder="Domain" class="border p-2 mr-2 rounded mb-2" />
+            <input id="employee_size" placeholder="Employee Size" class="border p-2 mr-2 rounded mb-2" />
+        </div>
+
+        <h3 class="mt-4 font-medium mb-2">Primary Contact</h3>
+        <div class="mb-4">
+            <input id="contact_name" placeholder="Contact Name" class="border p-2 mr-2 rounded mb-2" />
+            <input id="contact_email" placeholder="Email" class="border p-2 mr-2 rounded mb-2" />
+            <input id="contact_phone" placeholder="Phone" class="border p-2 mr-2 rounded mb-2" />
+        </div>
+        
+        <button onclick="addCompany()" class="bg-blue-600 text-white px-4 py-2 rounded">
+            Add Company
+        </button>
+
+        <p id="companyResult" class="mt-2 text-sm"></p>
+    </div>
+
+    <div class="bg-white p-4 rounded shadow">
+        <h2 class="text-lg font-semibold mb-4">Companies</h2>
+        <table class="w-full border">
+            <thead class="bg-gray-200">
+                <tr>
+                    <th class="p-2 text-left">ID</th>
+                    <th class="p-2 text-left">Name</th>
+                    <th class="p-2 text-left">Industry</th>
+                    <th class="p-2 text-left">Status</th>
+                    <th class="p-2 text-left">Created</th>
+                    <th class="p-2 text-left">Action</th>
+                </tr>
+            </thead>
+            <tbody id="companyTable"></tbody>
+        </table>
+    </div>
+
+    <!-- EDIT COMPANY MODAL -->
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg">
+        <h2 class="text-xl font-semibold mb-4">Edit Company</h2>
+
+        <input type="hidden" id="edit_company_id" />
+
+        <div class="mb-3">
+        <h4 class="mt-4 font-medium mb-2">Company Name:</h4>
+        <input id="edit_company_name" placeholder="Company Name"
+            class="border p-2 mr-2 rounded mb-2 w-full" />
+        </div>
+
+        <div class="mb-3">
+        <h4 class="mt-4 font-medium mb-2">Legal Name:</h4>
+        <input id="edit_legal_name" placeholder="Legal Name"
+            class="border p-2 mr-2 rounded mb-2 w-full" />
+        </div>
+
+        <div class="mb-3">
+        <h4 class="mt-4 font-medium mb-2">Industry:</h4>
+        <input id="edit_industry" placeholder="Industry"
+            class="border p-2 mr-2 rounded mb-2 w-full" />
+        </div>
+
+        <div class="mb-3">
+        <h4 class="mt-4 font-medium mb-2">Domain:</h4>
+        <input id="edit_domain" placeholder="Domain"
+            class="border p-2 mr-2 rounded mb-2 w-full" />
+        </div>
+
+        <div class="mb-3">
+        <h4 class="mt-4 font-medium mb-2">Employee Size:</h4>
+        <input id="edit_employee_size" placeholder="Employee Size"
+            class="border p-2 mr-2 rounded mb-2 w-full" />
+        </div>
+
+        <h4 class="mt-4 font-medium mb-2">Status:</h4>
+        <select id="edit_status" class="border p-2 w-full rounded mb-2">
+            <option value="trial">Trial</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+        </select>
+
+        <div class="flex justify-end gap-3 mt-4">
+        <button onclick="closeEditModal()"
+            class="px-4 py-2 border rounded">
+            Cancel
+        </button>
+        <button onclick="updateCompany()"
+            class="bg-blue-600 text-white px-4 py-2 rounded">
+            Save Changes
+        </button>
+        </div>
+
+        <p id="editResult" class="text-sm mt-2"></p>
+    </div>
+    </div>
+
+
+    <script>
+    const API = "http://127.0.0.1:8000";
+    const token = localStorage.getItem("token");
+
+    async function addCompany() {
+    const company = {
+        company_name: document.getElementById("company_name").value,
+        industry: document.getElementById("industry").value,
+        domain: document.getElementById("domain").value,
+        employee_size_range: document.getElementById("employee_size").value
+    };
+
+    const contact = {
+        name: document.getElementById("contact_name").value,
+        email: document.getElementById("contact_email").value,
+        phone: document.getElementById("contact_phone").value
+    };
+
+    const res = await fetch(`${API}/companies`, {
+        method: "POST",
+        headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+        },
+        body: JSON.stringify({ company, contact })
+    });
+
+    const data = await res.json();
+    document.getElementById("companyResult").innerText = data.message;
+    loadCompanies();
+    }
+
+    async function loadCompanies() {
+    const res = await fetch(`${API}/companies`, {
+        headers: { Authorization: "Bearer " + token }
+    });
+    const companies = await res.json();
+
+    const table = document.getElementById("companyTable");
+    table.innerHTML = "";
+
+    companies.forEach(c => {
+        table.innerHTML += `
+        <tr class="border-t">
+            <td class="p-2">${c[0]}</td>
+            <td class="p-2">${c[1]}</td>
+            <td class="p-2">${c[2]}</td>
+            <td class="p-2">${c[3]}</td>
+            <td class="p-2">${c[5]}</td>
+            <td class="p-2">
+            <button
+                onclick="openEditModal(${c[0]})"
+                class="text-blue-600 cursor-pointer">
+                Edit
+            </button>
+            </td>
+        </tr>
+        `;
+    });
+    }
+
+    async function openEditModal(companyId) {
+    const res = await fetch(`${API}/companies/${companyId}`, {
+        headers: { Authorization: "Bearer " + token }
+    });
+
+    const company = await res.json();
+
+    document.getElementById("edit_company_id").value = company.id;
+    document.getElementById("edit_company_name").value = company.company_name;
+    document.getElementById("edit_legal_name").value = company.legal_name || "";
+    document.getElementById("edit_domain").value = company.domain || "";
+    document.getElementById("edit_industry").value = company.industry || "";
+    document.getElementById("edit_employee_size").value = company.employee_size_range || "";
+    document.getElementById("edit_status").value = company.status;
+
+    document.getElementById("editModal").classList.remove("hidden");
+    document.getElementById("editModal").classList.add("flex");
+    }
+
+
+    function closeEditModal() {
+    document.getElementById("editModal").classList.add("hidden");
+    }
+
+    async function updateCompany() {
+    const id = document.getElementById("edit_company_id").value;
+
+    const payload = {
+        company_name: document.getElementById("edit_company_name").value,
+        legal_name: document.getElementById("edit_legal_name").value || null,
+        domain: document.getElementById("edit_domain").value || null,
+        industry: document.getElementById("edit_industry").value || null,
+        employee_size_range: document.getElementById("edit_employee_size").value || null,
+        status: document.getElementById("edit_status").value
+    };
+
+    const res = await fetch(`${API}/companies/${id}`, {
+        method: "PUT",
+        headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    document.getElementById("editResult").innerText =
+        data.message || data.detail;
+
+    closeEditModal();
+    loadCompanies();
+    }
+
+
+    loadCompanies();
+    </script>
+
+</body>
+</html>
