@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Companies Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        const token = localStorage.getItem("token");
+        if (!token) {
+            window.location.href = "index.html";
+        }
+    </script>
 </head>
 <body class="bg-gray-100 min-h-screen p-6">
     <h1 class="text-2xl font-bold mb-6">Companies Management</h1>
@@ -51,60 +57,78 @@
     </div>
 
     <!-- EDIT COMPANY MODAL -->
-    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
-    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg">
-        <h2 class="text-xl font-semibold mb-4">Edit Company</h2>
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden transform transition-all">
+            
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-bold text-gray-800">Edit Company Details</h3>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
 
-        <input type="hidden" id="edit_company_id" />
+            <div class="p-6">
+                <input type="hidden" id="edit_company_id" />
 
-        <div class="mb-3">
-        <h4 class="mt-4 font-medium mb-2">Company Name:</h4>
-        <input id="edit_company_name" placeholder="Company Name"
-            class="border p-2 mr-2 rounded mb-2 w-full" />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                        <input id="edit_company_name" placeholder="Company Name" 
+                            class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Legal Name</label>
+                        <input id="edit_legal_name" placeholder="Legal Name" 
+                            class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                            <input id="edit_industry" placeholder="Industry" 
+                                class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Domain</label>
+                            <input id="edit_domain" placeholder="Domain" 
+                                class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Employee Size</label>
+                            <input id="edit_employee_size" placeholder="Employee Size" 
+                                class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Status</label>
+                            <select id="edit_status" 
+                                class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white">
+                                <option value="trial">Trial</option>
+                                <option value="active">Active</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="closeEditModal()" 
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium transition-colors">
+                    Cancel
+                </button>
+                <button onclick="updateCompany()" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm transition-colors">
+                    Save Changes
+                </button>
+            </div>
         </div>
-
-        <div class="mb-3">
-        <h4 class="mt-4 font-medium mb-2">Legal Name:</h4>
-        <input id="edit_legal_name" placeholder="Legal Name"
-            class="border p-2 mr-2 rounded mb-2 w-full" />
-        </div>
-
-        <div class="mb-3">
-        <h4 class="mt-4 font-medium mb-2">Industry:</h4>
-        <input id="edit_industry" placeholder="Industry"
-            class="border p-2 mr-2 rounded mb-2 w-full" />
-        </div>
-
-        <div class="mb-3">
-        <h4 class="mt-4 font-medium mb-2">Domain:</h4>
-        <input id="edit_domain" placeholder="Domain"
-            class="border p-2 mr-2 rounded mb-2 w-full" />
-        </div>
-
-        <div class="mb-3">
-        <h4 class="mt-4 font-medium mb-2">Employee Size:</h4>
-        <input id="edit_employee_size" placeholder="Employee Size"
-            class="border p-2 mr-2 rounded mb-2 w-full" />
-        </div>
-
-        <h4 class="mt-4 font-medium mb-2">Status:</h4>
-        <select id="edit_status" class="border p-2 w-full rounded mb-2">
-            <option value="trial">Trial</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-        </select>
-
-        <div class="flex justify-end gap-3 mt-4">
-        <button onclick="closeEditModal()"
-            class="px-4 py-2 border rounded">
-            Cancel
-        </button>
-        <button onclick="updateCompany()"
-            class="bg-blue-600 text-white px-4 py-2 rounded">
-            Save Changes
-        </button>
-        </div>
-
+    </div>
         <p id="editResult" class="text-sm mt-2"></p>
     </div>
     </div>
@@ -112,7 +136,6 @@
 
     <script>
     const API = "http://127.0.0.1:8000";
-    const token = localStorage.getItem("token");
 
     async function addCompany() {
     const company = {

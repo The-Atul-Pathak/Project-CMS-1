@@ -9,7 +9,8 @@ from fastapi import Request
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
-
+from psycopg2 import errors
+from psycopg2.errors import UniqueViolation
 
 
 app = FastAPI()
@@ -49,6 +50,24 @@ class CompanyUpdate(BaseModel):
     industry: Optional[str] = None
     employee_size_range: Optional[str] = None
     status: str
+class PlanCreate(BaseModel):
+    name: str
+    price_monthly: Optional[float] = None
+    price_yearly: Optional[float] = None
+    max_employees: Optional[int] = None
+class PlanUpdate(BaseModel):
+    name: str
+    price_monthly: Optional[float] = None
+    price_yearly: Optional[float] = None
+    max_employees: Optional[int] = None
+class FeatureCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+class FeatureUpdate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
 
 
 #---------------- AUTH HELPERS ----------------
@@ -414,3 +433,221 @@ def update_company(
     conn.close()
 
     return {"message": "Company updated successfully"}
+
+@app.post("/plans")
+def create_plan(plan: PlanCreate, current=Depends(get_current_admin)):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO plans (name, price_monthly, price_yearly, max_employees)
+        VALUES (%s, %s, %s, %s)
+    """, (plan.name, plan.price_monthly, plan.price_yearly, plan.max_employees))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Plan created"}
+
+@app.get("/plans")
+def list_plans(current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, name, price_monthly, price_yearly, max_employees, created_at
+        FROM plans
+        ORDER BY id
+    """)
+    plans = cur.fetchall()
+
+    cur.close()
+    conn.close()
+    return plans
+
+@app.post("/features")
+def create_feature(feature: FeatureCreate, current=Depends(get_current_admin)):
+    if current["role"] not in ["SUPER_ADMIN", "SUPPORT"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            INSERT INTO features (code, name, description)
+            VALUES (%s, %s, %s)
+            """,
+            (feature.code, feature.name, feature.description)
+        )
+        conn.commit()
+
+    except errors.UniqueViolation:
+        conn.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Feature with code '{feature.code}' already exists"
+        )
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return {"message": "Feature added successfully"}
+
+
+@app.get("/features")
+def list_features(current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, code, name, description
+        FROM features
+        ORDER BY id
+    """)
+    features = cur.fetchall()
+
+    cur.close()
+    conn.close()
+    return features
+
+@app.put("/plans/{plan_id}")
+def update_plan(
+    plan_id: int,
+    plan: PlanUpdate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE plans
+        SET name = %s,
+            price_monthly = %s,
+            price_yearly = %s,
+            max_employees = %s
+        WHERE id = %s
+    """, (
+        plan.name,
+        plan.price_monthly,
+        plan.price_yearly,
+        plan.max_employees,
+        plan_id
+    ))
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Plan updated successfully"}
+
+@app.delete("/plans/{plan_id}")
+def delete_plan(
+    plan_id: int,
+    current=Depends(get_current_admin)
+):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM plans WHERE id = %s", (plan_id,))
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Plan deleted successfully"}
+
+@app.put("/features/{feature_id}")
+def update_feature(
+    feature_id: int,
+    feature: FeatureUpdate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] not in ["SUPER_ADMIN", "SUPPORT"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            UPDATE features
+            SET code = %s,
+                name = %s,
+                description = %s
+            WHERE id = %s
+            """,
+            (
+                feature.code,
+                feature.name,
+                feature.description,
+                feature_id
+            )
+        )
+
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Feature not found")
+
+        conn.commit()
+
+    except UniqueViolation:
+        conn.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Feature code already exists"
+        )
+
+    except psycopg2.Error:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Database error"
+        )
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return {"message": "Feature updated successfully"}
+
+
+@app.delete("/features/{feature_id}")
+def delete_feature(
+    feature_id: int,
+    current=Depends(get_current_admin)
+):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM features WHERE id = %s", (feature_id,))
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Feature not found")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Feature deleted successfully"}

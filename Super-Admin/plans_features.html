@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plans & Features</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+
+    <h1 class="text-2xl font-bold mb-6">Plans & Features Management</h1>
+
+    <div class="bg-white p-4 rounded shadow mb-6">
+        <h2 class="text-lg font-semibold mb-4">Plans</h2>
+        
+        <div class="mb-6">
+            <h3 class="font-medium mb-2">Add Plan</h3>
+            <input id="plan_name" placeholder="Plan Name" class="border p-2 mr-2 rounded mb-2" />
+            <input id="price_monthly" placeholder="Monthly Price" class="border p-2 mr-2 rounded mb-2" />
+            <input id="price_yearly" placeholder="Yearly Price" class="border p-2 mr-2 rounded mb-2" />
+            <input id="max_employees" placeholder="Max Employees" class="border p-2 mr-2 rounded mb-2" />
+            
+            <button onclick="addPlan()" class="bg-blue-600 text-white px-4 py-2 rounded">
+                Add Plan
+            </button>
+            <p id="planResult" class="mt-2 text-sm"></p>
+        </div>
+
+        <div class="overflow-x-auto overflow-y-auto max-h-96 border rounded">
+            <table class="w-full border-collapse">
+                <thead class="bg-gray-200 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-2 text-left">S.N.</th> <th class="p-2 text-left">ID</th>
+                        <th class="p-2 text-left">Name</th>
+                        <th class="p-2 text-left">Monthly</th>
+                        <th class="p-2 text-left">Yearly</th>
+                        <th class="p-2 text-left">Max Employees</th>
+                        <th class="p-2 text-left">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="plansTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white p-4 rounded shadow mb-6">
+        <h2 class="text-lg font-semibold mb-4">Features</h2>
+
+        <div class="mb-6">
+            <h3 class="font-medium mb-2">Add Feature</h3>
+            <input id="feature_code" placeholder="Feature Code (e.g HR)" class="border p-2 mr-2 rounded mb-2" />
+            <input id="feature_name" placeholder="Feature Name" class="border p-2 mr-2 rounded mb-2" />
+            <input id="feature_desc" placeholder="Description" class="border p-2 mr-2 rounded mb-2" />
+            
+            <button onclick="addFeature()" class="bg-blue-600 text-white px-4 py-2 rounded">
+                Add Feature
+            </button>
+            <p id="featureResult" class="mt-2 text-sm"></p>
+        </div>
+
+        <div class="overflow-x-auto overflow-y-auto max-h-96 border rounded">
+            <table class="w-full border-collapse">
+                <thead class="bg-gray-200 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-2 text-left">S.N.</th> <th class="p-2 text-left">ID</th>
+                        <th class="p-2 text-left">Code</th>
+                        <th class="p-2 text-left">Name</th>
+                        <th class="p-2 text-left">Description</th>
+                        <th class="p-2 text-left">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="featuresTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="editPlanModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-bold text-gray-800">Edit Plan Details</h3>
+                <button onclick="closeEditPlan()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <input type="hidden" id="edit_plan_id" />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Plan Name</label>
+                        <input id="edit_plan_name" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Monthly Price</label>
+                            <input id="edit_price_monthly" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Yearly Price</label>
+                            <input id="edit_price_yearly" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Employees</label>
+                        <input id="edit_max_employees" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="closeEditPlan()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium transition-colors">Cancel</button>
+                <button onclick="updatePlan()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm transition-colors">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editFeatureModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-bold text-gray-800">Edit Feature Details</h3>
+                <button onclick="closeEditFeature()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <input type="hidden" id="edit_feature_id" />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Feature Code</label>
+                        <input id="edit_feature_code" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Feature Name</label>
+                        <input id="edit_feature_name" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea id="edit_feature_desc" rows="3" class="w-full border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="closeEditFeature()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium transition-colors">Cancel</button>
+                <button onclick="updateFeature()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm transition-colors">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const token = localStorage.getItem("token");
+
+if (!token) {
+    window.location.href = "index.html";
+}
+
+/* ===================== PLANS ===================== */
+
+async function addPlan() {
+    const payload = {
+        name: document.getElementById("plan_name").value,
+        price_monthly: document.getElementById("price_monthly").value,
+        price_yearly: document.getElementById("price_yearly").value,
+        max_employees: document.getElementById("max_employees").value
+    };
+
+    const res = await fetch(`${API}/plans`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    document.getElementById("planResult").innerText = data.message || data.detail;
+    loadPlans();
+}
+
+async function loadPlans() {
+    const res = await fetch(`${API}/plans`, {
+        headers: { Authorization: "Bearer " + token }
+    });
+
+    const plans = await res.json();
+    const table = document.getElementById("plansTable");
+    table.innerHTML = "";
+
+    // Added index parameter to forEach to generate Serial Numbers
+    plans.forEach((p, index) => {
+        table.innerHTML += `
+            <tr class="border-t">
+                <td class="p-2 text-gray-500 font-medium">${index + 1}</td>
+                <td class="p-2">${p[0]}</td>
+                <td class="p-2">${p[1]}</td>
+                <td class="p-2">${p[2]}</td>
+                <td class="p-2">${p[3]}</td>
+                <td class="p-2">${p[4]}</td>
+                <td class="p-2">
+                    <button onclick='openEditPlan(${JSON.stringify(p)})'
+                        class="text-blue-600 mr-3 hover:underline">Edit</button>
+                    <button onclick="deletePlan(${p[0]})"
+                        class="text-red-600 hover:underline">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+/* ===================== FEATURES ===================== */
+
+async function addFeature() {
+    const payload = {
+        code: document.getElementById("feature_code").value,
+        name: document.getElementById("feature_name").value,
+        description: document.getElementById("feature_desc").value
+    };
+
+    const res = await fetch(`${API}/features`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    document.getElementById("featureResult").innerText = data.message || data.detail;
+    loadFeatures();
+}
+
+async function loadFeatures() {
+    const res = await fetch(`${API}/features`, {
+        headers: { Authorization: "Bearer " + token }
+    });
+
+    const features = await res.json();
+    const table = document.getElementById("featuresTable");
+    table.innerHTML = "";
+
+    // Added index parameter to forEach to generate Serial Numbers
+    features.forEach((f, index) => {
+        table.innerHTML += `
+            <tr class="border-t">
+                <td class="p-2 text-gray-500 font-medium">${index + 1}</td>
+                <td class="p-2">${f[0]}</td>
+                <td class="p-2">${f[1]}</td>
+                <td class="p-2">${f[2]}</td>
+                <td class="p-2">${f[3] || ""}</td>
+                <td class="p-2">
+                    <button onclick='openEditFeature(${JSON.stringify(f)})'
+                        class="text-blue-600 mr-3 hover:underline">Edit</button>
+                    <button onclick="deleteFeature(${f[0]})"
+                        class="text-red-600 hover:underline">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+// Logic for Modal Open/Close and Update/Delete remains exactly as requested
+function openEditPlan(plan) {
+    document.getElementById("edit_plan_id").value = plan[0];
+    document.getElementById("edit_plan_name").value = plan[1];
+    document.getElementById("edit_price_monthly").value = plan[2];
+    document.getElementById("edit_price_yearly").value = plan[3];
+    document.getElementById("edit_max_employees").value = plan[4];
+    document.getElementById("editPlanModal").classList.remove("hidden");
+    document.getElementById("editPlanModal").classList.add("flex");
+}
+
+function closeEditPlan() {
+    document.getElementById("editPlanModal").classList.add("hidden");
+}
+
+async function updatePlan() {
+    const id = document.getElementById("edit_plan_id").value;
+    const payload = {
+        name: document.getElementById("edit_plan_name").value,
+        price_monthly: document.getElementById("edit_price_monthly").value,
+        price_yearly: document.getElementById("edit_price_yearly").value,
+        max_employees: document.getElementById("edit_max_employees").value
+    };
+    await fetch(`${API}/plans/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify(payload)
+    });
+    closeEditPlan();
+    loadPlans();
+}
+
+async function deletePlan(id) {
+    if (!confirm("Delete this plan?")) return;
+    await fetch(`${API}/plans/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token }
+    });
+    loadPlans();
+}
+
+function openEditFeature(feature) {
+    document.getElementById("edit_feature_id").value = feature[0];
+    document.getElementById("edit_feature_code").value = feature[1];
+    document.getElementById("edit_feature_name").value = feature[2];
+    document.getElementById("edit_feature_desc").value = feature[3] || "";
+    document.getElementById("editFeatureModal").classList.remove("hidden");
+    document.getElementById("editFeatureModal").classList.add("flex");
+}
+
+function closeEditFeature() {
+    document.getElementById("editFeatureModal").classList.add("hidden");
+}
+
+async function updateFeature() {
+    const id = document.getElementById("edit_feature_id").value;
+    const payload = {
+        code: document.getElementById("edit_feature_code").value,
+        name: document.getElementById("edit_feature_name").value,
+        description: document.getElementById("edit_feature_desc").value
+    };
+    await fetch(`${API}/features/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify(payload)
+    });
+    closeEditFeature();
+    loadFeatures();
+}
+
+async function deleteFeature(id) {
+    if (!confirm("Delete this feature?")) return;
+    await fetch(`${API}/features/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token }
+    });
+    loadFeatures();
+}
+
+loadPlans();
+loadFeatures();
+</script>
+</body>
+</html>
