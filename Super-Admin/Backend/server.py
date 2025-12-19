@@ -409,7 +409,6 @@ def get_company(company_id: int, current=Depends(get_current_admin)):
         "status": company[6],
     }
 
-
 @app.put("/companies/{company_id}")
 def update_company(
     company_id: int,
@@ -516,7 +515,6 @@ def create_feature(feature: FeatureCreate, current=Depends(get_current_admin)):
         conn.close()
 
     return {"message": "Feature added successfully"}
-
 
 @app.get("/features")
 def list_features(current=Depends(get_current_admin)):
@@ -646,7 +644,6 @@ def update_feature(
 
     return {"message": "Feature updated successfully"}
 
-
 @app.delete("/features/{feature_id}")
 def delete_feature(
     feature_id: int,
@@ -678,7 +675,6 @@ def list_plans(current=Depends(get_current_admin)):
     cur.close()
     conn.close()
     return data
-
 
 @app.get("/features")
 def list_features(current=Depends(get_current_admin)):
@@ -762,7 +758,6 @@ def set_company_subscription(
     conn.close()
 
     return {"message": "Subscription updated and company activated"}
-
 
 @app.put("/companies/{company_id}/features")
 def update_company_features(
