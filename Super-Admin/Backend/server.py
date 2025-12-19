@@ -11,6 +11,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from psycopg2 import errors
 from psycopg2.errors import UniqueViolation
+from typing import List
+from datetime import date
 
 
 app = FastAPI()
@@ -68,6 +70,12 @@ class FeatureUpdate(BaseModel):
     code: str
     name: str
     description: Optional[str] = None
+class CompanySubscriptionCreate(BaseModel):
+    plan_id: int
+    billing_cycle: str  # "monthly" or "yearly"
+    start_date: Optional[date] = None
+class CompanyFeatureUpdate(BaseModel):
+    feature_ids: List[int]  # enabled features
 
 
 #---------------- AUTH HELPERS ----------------
@@ -126,6 +134,15 @@ def create_access_token(data: dict):
     expire = datetime.utcnow() + timedelta(minutes=30)
     data.update({"exp": expire})
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
+def calculate_end_date(start: date, cycle: str):
+    if cycle == "monthly":
+        return start + timedelta(days=30)
+    elif cycle == "yearly":
+        return start + timedelta(days=365)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid billing cycle")
+
 
 # ---------------- LOGIN ----------------
 @app.post("/login")
@@ -651,3 +668,132 @@ def delete_feature(
     conn.close()
 
     return {"message": "Feature deleted successfully"}
+
+@app.get("/plans")
+def list_plans(current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, price_monthly, price_yearly FROM plans")
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return data
+
+
+@app.get("/features")
+def list_features(current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, code, name FROM features")
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return data
+
+@app.get("/companies/{company_id}/subscription")
+def get_company_subscription(company_id: int, current=Depends(get_current_admin)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT plan_id, start_date, end_date, status, auto_renew
+        FROM company_subscriptions
+        WHERE company_id = %s AND status = 'active'
+        ORDER BY id DESC
+        LIMIT 1
+    """, (company_id,))
+
+    subscription = cur.fetchone()
+
+    cur.execute("""
+        SELECT feature_id
+        FROM company_features
+        WHERE company_id = %s AND enabled = TRUE
+    """, (company_id,))
+    features = [f[0] for f in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "subscription": subscription,
+        "features": features
+    }
+
+@app.post("/companies/{company_id}/subscription")
+def set_company_subscription(
+    company_id: int,
+    data: CompanySubscriptionCreate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] not in ["SUPER_ADMIN", "SUPPORT"]:
+        raise HTTPException(status_code=403)
+
+    start = data.start_date or datetime.utcnow().date()
+    end = calculate_end_date(start, data.billing_cycle)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # deactivate old subscription
+    cur.execute("""
+        UPDATE company_subscriptions
+        SET status = 'inactive'
+        WHERE company_id = %s AND status = 'active'
+    """, (company_id,))
+
+    # create new subscription
+    cur.execute("""
+        INSERT INTO company_subscriptions
+        (company_id, plan_id, start_date, end_date, status)
+        VALUES (%s, %s, %s, %s, 'active')
+    """, (company_id, data.plan_id, start, end))
+
+    # ✅ activate company
+    cur.execute("""
+        UPDATE companies
+        SET status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (company_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Subscription updated and company activated"}
+
+
+@app.put("/companies/{company_id}/features")
+def update_company_features(
+    company_id: int,
+    data: CompanyFeatureUpdate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] not in ["SUPER_ADMIN", "SUPPORT"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Disable all existing
+    cur.execute("""
+        UPDATE company_features
+        SET enabled = FALSE
+        WHERE company_id = %s
+    """, (company_id,))
+
+    # Enable selected
+    for feature_id in data.feature_ids:
+        cur.execute("""
+            INSERT INTO company_features (company_id, feature_id, enabled)
+            VALUES (%s, %s, TRUE)
+            ON CONFLICT (company_id, feature_id)
+            DO UPDATE SET enabled = TRUE, enabled_at = CURRENT_TIMESTAMP
+        """, (company_id, feature_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Features updated"}

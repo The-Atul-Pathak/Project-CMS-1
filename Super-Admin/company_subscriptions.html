@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Subscriptions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+    <h1 class="text-2xl font-bold mb-6">Company Subscriptions</h1>
+
+    <div class="bg-white p-4 rounded shadow mb-6">
+        <div class="overflow-x-auto overflow-y-auto max-h-[600px] border rounded">
+            <table class="w-full border-collapse">
+                <thead class="bg-gray-200 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-3 text-left w-16">S.N.</th>
+                        <th class="p-3 text-left">ID</th>
+                        <th class="p-3 text-left">Company</th>
+                        <th class="p-3 text-left">Status</th>
+                        <th class="p-3 text-left">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="companyTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden transform transition-all">
+            
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-bold text-gray-800">Manage Subscription</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="company_id">
+
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Select Plan</label>
+                    <div id="plansBox" class="space-y-2 bg-gray-50 p-4 rounded-md border border-gray-200 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                        </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wider">Billing Cycle</label>
+                    <select id="billing_cycle" class="w-full md:w-1/2 border border-gray-300 rounded-md p-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                        <option value="monthly">Monthly Billing</option>
+                        <option value="yearly">Yearly Billing</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Add-on Features</label>
+                    <div id="featuresBox" class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-md border border-gray-200 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                        </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                <p id="result" class="text-sm font-medium text-green-600"></p>
+                <div class="flex gap-3">
+                    <button onclick="closeModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="saveSubscription()" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm transition-colors">
+                        Save Subscription
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<style>
+    /* Optional: Custom scrollbar for a cleaner look */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const token = localStorage.getItem("token");
+
+if (!token) window.location.href = "index.html";
+
+/* ================= LOAD COMPANIES ================= */
+
+async function loadCompanies() {
+  const res = await fetch(`${API}/companies`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const companies = await res.json();
+
+  const table = document.getElementById("companyTable");
+  table.innerHTML = "";
+
+  companies.forEach((c, index) => {
+    table.innerHTML += `
+      <tr class="border-t hover:bg-gray-50 transition-colors">
+        <td class="p-3 text-gray-500 font-medium">${index + 1}</td>
+        <td class="p-3 font-mono text-sm text-gray-600">${c[0]}</td>
+        <td class="p-3 font-semibold text-gray-800">${c[1]}</td>
+        <td class="p-3">
+            <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${c[3] === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+                ${c[3]}
+            </span>
+        </td>
+        <td class="p-3">
+          <button class="text-blue-600 font-bold hover:underline flex items-center gap-1" onclick="openModal(${c[0]})">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Manage
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+/* ================= OPEN MODAL ================= */
+
+async function openModal(companyId) {
+  document.getElementById("company_id").value = companyId;
+  document.getElementById("result").innerText = ""; // Clear status
+  document.getElementById("modal").classList.remove("hidden");
+  document.getElementById("modal").classList.add("flex");
+
+  await loadPlans();
+  await loadFeatures();
+
+  const res = await fetch(`${API}/companies/${companyId}/subscription`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  if (!res.ok) return;
+  const data = await res.json();
+
+  if (data.subscription) {
+    const planId = data.subscription[0];
+    const planRadio = document.querySelector(`input[name="plan"][value="${planId}"]`);
+    if (planRadio) planRadio.checked = true;
+  }
+
+  if (data.features) {
+    data.features.forEach(fid => {
+      const checkbox = document.querySelector(`#featuresBox input[value="${fid}"]`);
+      if (checkbox) checkbox.checked = true;
+    });
+  }
+}
+
+/* ================= LOAD PLANS ================= */
+
+async function loadPlans() {
+  const res = await fetch(`${API}/plans`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const plans = await res.json();
+
+  const box = document.getElementById("plansBox");
+  box.innerHTML = "";
+
+  plans.forEach(p => {
+    box.innerHTML += `
+      <label class="flex items-center p-3 border rounded-md cursor-pointer hover:bg-white transition-all">
+        <input type="radio" name="plan" value="${p[0]}" class="h-4 w-4 text-blue-600 focus:ring-blue-500">
+        <div class="ml-3">
+            <span class="block font-bold text-gray-800">${p[1]}</span>
+            <span class="text-xs text-gray-500">Monthly: ₹${p[2]} | Yearly: ₹${p[3]}</span>
+        </div>
+      </label>
+    `;
+  });
+}
+
+/* ================= LOAD FEATURES ================= */
+
+async function loadFeatures() {
+  const res = await fetch(`${API}/features`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const features = await res.json();
+
+  const box = document.getElementById("featuresBox");
+  box.innerHTML = "";
+
+  features.forEach(f => {
+    box.innerHTML += `
+      <label class="flex items-center p-2 hover:bg-white rounded transition-colors cursor-pointer">
+        <input type="checkbox" value="${f[0]}" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+        <span class="ml-2 text-sm text-gray-700">${f[2]}</span>
+      </label>
+    `;
+  });
+}
+
+/* ================= SAVE ================= */
+
+async function saveSubscription() {
+  const companyId = document.getElementById("company_id").value;
+  const planId = document.querySelector("input[name='plan']:checked")?.value;
+  
+  if (!planId) {
+    alert("Select a plan");
+    return;
+  }
+
+  const billing = document.getElementById("billing_cycle").value;
+  const featureIds = Array.from(
+    document.querySelectorAll("#featuresBox input:checked")
+  ).map(i => parseInt(i.value));
+
+  const planRes = await fetch(`${API}/companies/${companyId}/subscription`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ plan_id: parseInt(planId), billing_cycle: billing })
+  });
+
+  if (!planRes.ok) { alert("Failed to save subscription"); return; }
+
+  const featureRes = await fetch(`${API}/companies/${companyId}/features`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ feature_ids: featureIds })
+  });
+
+  if (!featureRes.ok) { alert("Failed to save features"); return; }
+
+  document.getElementById("result").innerText = "Success! Update complete.";
+  setTimeout(() => closeModal(), 1000);
+  loadCompanies();
+}
+
+function closeModal() {
+  document.getElementById("modal").classList.add("hidden");
+}
+
+loadCompanies();
+</script>
+
+</body>
+</html>
