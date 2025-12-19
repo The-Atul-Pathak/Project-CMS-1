@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,6 +14,17 @@ from psycopg2 import errors
 from psycopg2.errors import UniqueViolation
 from typing import List
 from datetime import date
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+
+
+
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+print("DB_PASSWORD:", os.getenv("DB_PASSWORD"))
 
 
 app = FastAPI()
@@ -82,41 +94,61 @@ class CompanyFeatureUpdate(BaseModel):
 
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     admin_id = payload.get("sub")
     session_id = payload.get("sid")
 
     if not admin_id or not session_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    admin_id = int(admin_id)
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute(
-        "SELECT id, role FROM platform_admins WHERE id = %s",
-        (admin_id,)
+        """
+        SELECT ps.id, ps.expires_at, pa.id, pa.role
+        FROM platform_sessions ps
+        JOIN platform_admins pa ON pa.id = ps.admin_id
+        WHERE ps.id = %s
+          AND ps.admin_id = %s
+        """,
+        (session_id, admin_id)
     )
-    admin = cur.fetchone()
+
+    row = cur.fetchone()
 
     cur.close()
     conn.close()
 
-    if not admin:
-        raise HTTPException(status_code=401)
+    if not row:
+        raise HTTPException(status_code=401, detail="Session not found")
+
+    expires_at = row[1]
+
+    if expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Session expired")
+
+
 
     return {
-        "id": admin[0],
-        "role": admin[1],
+        "id": admin_id,
+        "role": row[3],
         "session_id": session_id
     }
 
 def get_db_connection():
     return psycopg2.connect(
-        host="localhost",
-        database="CMS",
-        user="postgres",
-        password="10815"
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD")
     )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -127,11 +159,12 @@ def hash_password(p: str):
 def verify_password(p: str, h: str):
     return pwd_context.verify(p, h)
 
-SECRET_KEY = "change_this_secret"
-ALGORITHM = "HS256"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXP_MINUTES", 30))
 
 def create_access_token(data: dict):
-    expire = datetime.utcnow() + timedelta(minutes=30)
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     data.update({"exp": expire})
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -142,6 +175,64 @@ def calculate_end_date(start: date, cycle: str):
         return start + timedelta(days=365)
     else:
         raise HTTPException(status_code=400, detail="Invalid billing cycle")
+
+def log_platform_activity(
+    actor_type: str,
+    actor_id: int,
+    action: str,
+    target_type: str = None,
+    target_id: int = None,
+    metadata: dict = None
+):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO platform_activity_logs
+        (actor_type, actor_id, action, target_type, target_id, metadata)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            actor_type,
+            actor_id,
+            action,
+            target_type,
+            target_id,
+            json.dumps(metadata) if metadata else None
+        )
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def write_audit_log(
+    entity_type: str,
+    entity_id: int,
+    action: str,
+    performed_by: str
+):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO audit_logs
+        (entity_type, entity_id, action, performed_by)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            entity_type,
+            entity_id,
+            action,
+            performed_by
+        )
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 # ---------------- LOGIN ----------------
@@ -190,6 +281,16 @@ def login(user: UserLogin, request: Request):
         "sid": session_id
     })
 
+    log_platform_activity(
+        actor_type="ADMIN",
+        actor_id=user_id,
+        action="ADMIN_LOGIN",
+        metadata={
+            "ip": request.client.host,
+            "user_agent": request.headers.get("user-agent")
+        }
+    )
+
     return {"access_token": token}
 
 #---------------- ADMIN MANAGEMENT ----------------
@@ -209,6 +310,7 @@ def add_admin(
         """
         INSERT INTO platform_admins (name, email, role, password_hash)
         VALUES (%s, %s, %s, %s)
+        RETURNING id
         """,
         (
             admin.name,
@@ -218,9 +320,17 @@ def add_admin(
         )
     )
 
+    new_admin_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
     conn.close()
+
+    write_audit_log(
+        entity_type="PLATFORM_ADMIN",
+        entity_id=new_admin_id,
+        action="ADMIN_CREATED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
 
     return {"message": "Admin added successfully"}
 
@@ -292,6 +402,13 @@ def remove_admin(
     cur.close()
     conn.close()
 
+    write_audit_log(
+        entity_type="PLATFORM_ADMIN",
+        entity_id=admin_id,
+        action="ADMIN_DELETED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
+
     return {"message": "Admin removed successfully"}
 
 @app.post("/logout")
@@ -310,6 +427,12 @@ def logout(current=Depends(get_current_admin)):
     conn.commit()
     cur.close()
     conn.close()
+
+    log_platform_activity(
+        actor_type="ADMIN",
+        actor_id=admin_id,
+        action="ADMIN_LOGOUT"
+    )
 
     return {"message": "Logged out successfully"}
 
@@ -361,6 +484,24 @@ def add_company(
     conn.commit()
     cur.close()
     conn.close()
+
+    log_platform_activity(
+        actor_type="ADMIN",
+        actor_id=current["id"],
+        action="COMPANY_CREATED",
+        target_type="COMPANY",
+        target_id=company_id,
+        metadata={
+            "company_name": company.company_name
+        }
+    )
+
+    write_audit_log(
+        entity_type="COMPANY",
+        entity_id=company_id,
+        action="COMPANY_CREATED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
 
     return {"message": "Company added successfully", "company_id": company_id}
 
@@ -666,26 +807,6 @@ def delete_feature(
 
     return {"message": "Feature deleted successfully"}
 
-@app.get("/plans")
-def list_plans(current=Depends(get_current_admin)):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, price_monthly, price_yearly FROM plans")
-    data = cur.fetchall()
-    cur.close()
-    conn.close()
-    return data
-
-@app.get("/features")
-def list_features(current=Depends(get_current_admin)):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, code, name FROM features")
-    data = cur.fetchall()
-    cur.close()
-    conn.close()
-    return data
-
 @app.get("/companies/{company_id}/subscription")
 def get_company_subscription(company_id: int, current=Depends(get_current_admin)):
     conn = get_db_connection()
@@ -757,6 +878,25 @@ def set_company_subscription(
     cur.close()
     conn.close()
 
+    log_platform_activity(
+        actor_type="ADMIN",
+        actor_id=current["id"],
+        action="SUBSCRIPTION_UPDATED",
+        target_type="COMPANY",
+        target_id=company_id,
+        metadata={
+            "plan_id": data.plan_id,
+            "billing_cycle": data.billing_cycle
+        }
+    )
+
+    write_audit_log(
+        entity_type="COMPANY",
+        entity_id=company_id,
+        action="SUBSCRIPTION_ASSIGNED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
+
     return {"message": "Subscription updated and company activated"}
 
 @app.put("/companies/{company_id}/features")
@@ -790,5 +930,12 @@ def update_company_features(
     conn.commit()
     cur.close()
     conn.close()
+
+    write_audit_log(
+        entity_type="COMPANY",
+        entity_id=company_id,
+        action="FEATURES_UPDATED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
 
     return {"message": "Features updated"}
