@@ -1,3 +1,18 @@
+"""
+PHASE 1 — PLATFORM BACKEND (FROZEN)
+
+This file handles:
+- Platform admin auth
+- Company onboarding
+- Plans, features, subscriptions
+- Platform & audit logging
+
+DO NOT add company-user logic here.
+All Phase 2 logic lives in /Company.
+"""
+
+
+
 import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
