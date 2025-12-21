@@ -1,18 +1,3 @@
-"""
-PHASE 1 — PLATFORM BACKEND (FROZEN)
-
-This file handles:
-- Platform admin auth
-- Company onboarding
-- Plans, features, subscriptions
-- Platform & audit logging
-
-DO NOT add company-user logic here.
-All Phase 2 logic lives in /Company.
-"""
-
-
-
 import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,14 +18,10 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-
-
-
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 print("DB_PASSWORD:", os.getenv("DB_PASSWORD"))
-
 
 app = FastAPI()
 security = HTTPBearer()
@@ -52,7 +33,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#---------------- MODELS ----------------
 class UserLogin(BaseModel):
     admin_id: str
     password: str
@@ -99,13 +79,10 @@ class FeatureUpdate(BaseModel):
     description: Optional[str] = None
 class CompanySubscriptionCreate(BaseModel):
     plan_id: int
-    billing_cycle: str  # "monthly" or "yearly"
+    billing_cycle: str  
     start_date: Optional[date] = None
 class CompanyFeatureUpdate(BaseModel):
-    feature_ids: List[int]  # enabled features
-
-
-#---------------- AUTH HELPERS ----------------
+    feature_ids: List[int]  
 
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
@@ -149,8 +126,6 @@ def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(securi
 
     if expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="Session expired")
-
-
 
     return {
         "id": admin_id,
@@ -249,8 +224,6 @@ def write_audit_log(
     cur.close()
     conn.close()
 
-
-# ---------------- LOGIN ----------------
 @app.post("/login")
 def login(user: UserLogin, request: Request):
     conn = get_db_connection()
@@ -307,8 +280,6 @@ def login(user: UserLogin, request: Request):
     )
 
     return {"access_token": token}
-
-#---------------- ADMIN MANAGEMENT ----------------
 
 @app.post("/admins")
 def add_admin(
@@ -367,18 +338,15 @@ def remove_admin(
     admin_id: int,
     current=Depends(get_current_admin)
 ):
-    # Only SUPER_ADMIN can delete
     if current["role"] != "SUPER_ADMIN":
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # Cannot delete yourself
     if current["id"] == admin_id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
 
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Get role of admin being deleted
     cur.execute(
         "SELECT role FROM platform_admins WHERE id = %s",
         (admin_id,)
@@ -392,7 +360,6 @@ def remove_admin(
 
     role_to_delete = row[0]
 
-    # If deleting SUPER_ADMIN → check count
     if role_to_delete == "SUPER_ADMIN":
         cur.execute(
             "SELECT COUNT(*) FROM platform_admins WHERE role = 'SUPER_ADMIN'"
@@ -407,7 +374,6 @@ def remove_admin(
                 detail="Cannot delete the last SUPER_ADMIN"
             )
 
-    # Safe to delete
     cur.execute(
         "DELETE FROM platform_admins WHERE id = %s",
         (admin_id,)
@@ -867,21 +833,18 @@ def set_company_subscription(
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # deactivate old subscription
     cur.execute("""
         UPDATE company_subscriptions
         SET status = 'inactive'
         WHERE company_id = %s AND status = 'active'
     """, (company_id,))
 
-    # create new subscription
     cur.execute("""
         INSERT INTO company_subscriptions
         (company_id, plan_id, start_date, end_date, status)
         VALUES (%s, %s, %s, %s, 'active')
     """, (company_id, data.plan_id, start, end))
 
-    # ✅ activate company
     cur.execute("""
         UPDATE companies
         SET status = 'active',
@@ -926,14 +889,12 @@ def update_company_features(
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Disable all existing
     cur.execute("""
         UPDATE company_features
         SET enabled = FALSE
         WHERE company_id = %s
     """, (company_id,))
 
-    # Enable selected
     for feature_id in data.feature_ids:
         cur.execute("""
             INSERT INTO company_features (company_id, feature_id, enabled)
