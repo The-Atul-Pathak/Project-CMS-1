@@ -131,6 +131,22 @@
     </div>
         <p id="editResult" class="text-sm mt-2"></p>
     </div>
+    <div id="adminModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+    <div class="bg-white p-6 rounded w-96">
+        <h3 class="font-bold mb-4">Create Company Admin</h3>
+
+        <input id="admin_name" placeholder="Name" class="border p-2 w-full mb-2">
+        <input id="admin_emp" placeholder="Emp ID" class="border p-2 w-full mb-2">
+        <input id="admin_email" placeholder="Email" class="border p-2 w-full mb-2">
+        <input id="admin_password" type="password" placeholder="Password" class="border p-2 w-full mb-2">
+
+        <button onclick="createCompanyAdmin()"
+        class="bg-blue-600 text-white px-4 py-2 rounded">
+        Create
+        </button>
+    </div>
+    </div>
+
     </div>
 
 
@@ -183,11 +199,12 @@
             <td class="p-2">${c[3]}</td>
             <td class="p-2">${c[5]}</td>
             <td class="p-2">
-            <button
-                onclick="openEditModal(${c[0]})"
-                class="text-blue-600 cursor-pointer">
-                Edit
-            </button>
+            <button onclick="openAdminModal(${c[0]})"
+            class="text-green-600 mr-3">Admin</button>
+
+            <button onclick="openEditModal(${c[0]})"
+            class="text-blue-600">Edit</button>
+
             </td>
         </tr>
         `;
@@ -246,6 +263,37 @@
     closeEditModal();
     loadCompanies();
     }
+
+    let selectedCompany = null;
+
+    function openAdminModal(companyId) {
+    selectedCompany = companyId;
+    document.getElementById("adminModal").classList.remove("hidden");
+    document.getElementById("adminModal").classList.add("flex");
+    }
+
+    async function createCompanyAdmin() {
+    const payload = {
+        name: admin_name.value,
+        emp_id: admin_emp.value,
+        email: admin_email.value,
+        password: admin_password.value
+    };
+
+    const res = await fetch(`${API}/companies/${selectedCompany}/admin`, {
+        method: "POST",
+        headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    alert(data.message || data.detail);
+    document.getElementById("adminModal").classList.add("hidden");
+    }
+
 
 
     loadCompanies();

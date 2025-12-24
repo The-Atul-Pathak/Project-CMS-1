@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company Login | Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Research Point 3.1 & 7.1: Slate-based Neutral Palette */
+      --color-surface-base: #F8FAFC;    /* Slate-50 */
+      --color-surface-card: #FFFFFF;
+      --color-text-title: #0F172A;      /* Slate-900 (Soft Black) */
+      --color-text-body: #334155;       /* Slate-700 */
+      --color-text-muted: #64748B;      /* Slate-500 */
+      --color-border: #E2E8F0;          /* Slate-200 */
+      
+      /* Research Point 3.2: Brand Guardrail (Inter Blue) */
+      --brand-h: 221;
+      --brand-s: 83%;
+      --brand-l: 53%;
+      --color-primary: hsl(var(--brand-h), var(--brand-s), var(--brand-l));
+      --color-primary-hover: hsl(var(--brand-h), var(--brand-s), calc(var(--brand-l) - 5%));
+      
+      /* Research Point 3.3: Semantic Color (Rose for Danger) */
+      --color-danger: #F43F5E;
+
+      /* Research Point 5.2: 8-Point Grid System */
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-surface-base);
+      color: var(--color-text-body);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Research Point 6.3: The Card Metaphor */
+    .login-card {
+      background: var(--color-surface-card);
+      padding: var(--space-xl);
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      width: 100%;
+      max-width: 400px;
+      /* Research Point 9.3: Soft Shadow Depth */
+      box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 10px 15px -3px rgba(15, 23, 42, 0.1);
+    }
+
+    .header-group {
+      margin-bottom: var(--space-xl);
+    }
+
+    h2 {
+      color: var(--color-text-title);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      margin-bottom: var(--space-sm);
+    }
+
+    .subtitle {
+      color: var(--color-text-muted);
+      font-size: 14px;
+    }
+
+    /* Research Point 6.2.2: Input Field Physiology */
+    .form-group {
+      margin-bottom: var(--space-md);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      background-color: #fff;
+      color: var(--color-text-title);
+    }
+
+    /* Research Point 3.2: Focus Rings */
+    input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 4px hsla(var(--brand-h), var(--brand-s), var(--brand-l), 0.15);
+    }
+
+    button {
+      width: 100%;
+      background-color: var(--color-primary);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      margin-top: var(--space-sm);
+    }
+
+    button:hover {
+      background-color: var(--color-primary-hover);
+    }
+
+    #error {
+      font-size: 13px;
+      color: var(--color-danger);
+      background-color: #FFF1F2;
+      padding: var(--space-sm);
+      border-radius: 4px;
+      margin-top: var(--space-md);
+      display: none; /* Hidden by default */
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="header-group">
+    <h2>Welcome back</h2>
+    <p class="subtitle">Please enter your company credentials.</p>
+  </div>
+
+  <div class="form-group">
+    <label for="company_id">Company ID</label>
+    <input id="company_id" type="number" placeholder="e.g. 1042">
+  </div>
+
+  <div class="form-group">
+    <label for="identifier">Account Access</label>
+    <input id="identifier" placeholder="Employee ID or Email">
+  </div>
+
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="••••••••">
+  </div>
+
+  <button onclick="login()">Sign In</button>
+
+  <p id="error"></p>
+</div>
+
+<script>
+async function login() {
+  const errorEl = document.getElementById("error");
+  errorEl.style.display = "none";
+  
+  const company_id = parseInt(document.getElementById("company_id").value);
+  const identifier = document.getElementById("identifier").value;
+  const password = document.getElementById("password").value;
+
+  if (!company_id || !identifier || !password) {
+      errorEl.textContent = "Please fill in all fields";
+      errorEl.style.display = "block";
+      return;
+  }
+
+  const payload = { company_id, password };
+  if (identifier.includes("@")) {
+    payload.email = identifier;
+  } else {
+    payload.emp_id = identifier;
+  }
+
+  try {
+    const res = await fetch("http://127.0.0.1:9000/company/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (data.access_token) {
+      localStorage.setItem("company_token", data.access_token);
+      window.location.href = "home.html"; // Example redirect
+    } else {
+      errorEl.textContent = data.detail || "Authentication failed. Please check your credentials.";
+      errorEl.style.display = "block";
+    }
+  } catch (err) {
+    errorEl.textContent = "Unable to connect to server.";
+    errorEl.style.display = "block";
+  }
+}
+</script>
+
+</body>
+</html>

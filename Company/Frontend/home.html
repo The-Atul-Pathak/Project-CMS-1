@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Company Home</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+  </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex">
+
+  <!-- SIDEBAR -->
+  <aside class="w-64 bg-white border-r min-h-screen p-4">
+    <div class="text-xl font-bold mb-6">Management OS</div>
+
+    <nav id="sidebarNav" class="space-y-2">
+      <div class="font-medium text-gray-700">Dashboard</div>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 p-6">
+    <header class="flex justify-between items-center mb-6">
+      <h2 class="text-lg font-semibold">System Overview</h2>
+      <button onclick="logout()" class="text-red-600 underline">Logout</button>
+    </header>
+
+    <div class="mb-6">
+      <h1 id="welcomeText" class="text-2xl font-bold mb-1">Welcome</h1>
+      <p class="text-gray-500">Access verified</p>
+    </div>
+
+    <!-- USER INFO -->
+    <div id="userInfo" class="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- injected -->
+    </div>
+
+    <!-- FEATURES -->
+    <h3 class="text-lg font-semibold mb-4">Available Modules</h3>
+
+    <div id="features" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- injected -->
+    </div>
+  </main>
+
+<script>
+async function loadHome() {
+  try {
+    const res = await fetch(`${API}/company/me`, {
+      headers: { Authorization: "Bearer " + token }
+    });
+
+    if (!res.ok) throw new Error("Unauthorized");
+
+    const data = await res.json();
+    const user = data.user;
+    const features = data.features;
+
+    document.getElementById("welcomeText").innerText =
+      `Welcome, ${user.name.split(" ")[0]}`;
+
+    document.getElementById("userInfo").innerHTML = `
+      <div>
+        <div class="text-xs text-gray-500">Employee ID</div>
+        <div class="font-medium">${user.emp_id}</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500">Email</div>
+        <div class="font-medium">${user.email || "-"}</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500">Company</div>
+        <div class="font-medium">${user.company}</div>
+      </div>
+    `;
+
+    const featureBox = document.getElementById("features");
+    const sidebarNav = document.getElementById("sidebarNav");
+
+    // ADMIN BUTTON
+    if (user.is_company_admin) {
+      const adminNav = document.createElement("div");
+      adminNav.className =
+        "cursor-pointer text-blue-600 font-medium hover:underline";
+      adminNav.innerText = "User Management";
+      adminNav.onclick = () => window.location.href = "user_management.html";
+      sidebarNav.appendChild(adminNav);
+
+      const adminCard = document.createElement("div");
+      adminCard.className =
+        "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50";
+      adminCard.innerHTML = `
+        <div class="font-semibold">User Management</div>
+        <div class="text-sm text-gray-500">Manage employees & sessions</div>
+      `;
+      adminCard.onclick = () => window.location.href = "user_management.html";
+      featureBox.appendChild(adminCard);
+    }
+
+    // FEATURES
+    features.forEach(f => {
+      const navItem = document.createElement("div");
+      navItem.className = "cursor-pointer text-gray-700 hover:underline";
+      navItem.innerText = f.name;
+      sidebarNav.appendChild(navItem);
+
+      const card = document.createElement("div");
+      card.className =
+        "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50";
+      card.innerHTML = `
+        <div class="font-semibold">${f.name}</div>
+        <div class="text-sm text-gray-500">Open module</div>
+      `;
+      card.onclick = () => alert(`Opening ${f.code} module`);
+      featureBox.appendChild(card);
+    });
+
+  } catch (err) {
+    logout();
+  }
+}
+
+async function logout() {
+  await fetch(`${API}/company/logout`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token }
+  });
+  localStorage.removeItem("company_token");
+  window.location.href = "login.html";
+}
+
+loadHome();
+</script>
+
+</body>
+</html>

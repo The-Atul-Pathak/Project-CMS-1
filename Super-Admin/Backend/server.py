@@ -84,6 +84,13 @@ class CompanySubscriptionCreate(BaseModel):
 class CompanyFeatureUpdate(BaseModel):
     feature_ids: List[int]  
 
+class CompanyAdminCreate(BaseModel):
+    name: str
+    emp_id: str
+    email: str
+    password: str
+
+
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
 
@@ -915,3 +922,39 @@ def update_company_features(
     )
 
     return {"message": "Features updated"}
+
+@app.post("/companies/{company_id}/admin")
+def create_company_admin(
+    company_id: int,
+    admin: CompanyAdminCreate,
+    current=Depends(get_current_admin)
+):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # ensure company exists
+    cur.execute("SELECT id FROM companies WHERE id = %s", (company_id,))
+    if not cur.fetchone():
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # create admin user
+    cur.execute("""
+        INSERT INTO users
+        (company_id, emp_id, name, email, password_hash, is_company_admin)
+        VALUES (%s, %s, %s, %s, %s, TRUE)
+    """, (
+        company_id,
+        admin.emp_id,
+        admin.name,
+        admin.email,
+        hash_password(admin.password)
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Company admin created"}
