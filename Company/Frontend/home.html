@@ -2,9 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Company Home</title>
+  <title>Management OS | Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .sidebar-item:hover { background-color: rgba(59, 130, 246, 0.05); }
+    .card-gradient:hover { border-color: #3b82f6; transform: translateY(-2px); }
+  </style>
 
   <script>
     const API = "http://127.0.0.1:9000";
@@ -13,49 +20,67 @@
   </script>
 </head>
 
-<body class="bg-gray-100 min-h-screen flex">
+<body class="bg-slate-50 text-slate-900 min-h-screen flex">
 
-  <!-- SIDEBAR -->
-  <aside class="w-64 bg-white border-r min-h-screen p-4">
-    <div class="text-xl font-bold mb-6">Management OS</div>
+  <aside class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col sticky top-0 h-screen">
+    <div class="p-6 flex items-center gap-3">
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">M</div>
+      <span class="text-lg font-bold tracking-tight text-slate-800">Management OS</span>
+    </div>
 
-    <nav id="sidebarNav" class="space-y-2">
-      <div class="font-medium text-gray-700 mb-2">Dashboard</div>
-      <!-- pages injected here -->
+    <nav class="flex-1 px-4 space-y-1">
+      <p class="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Main Menu</p>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+        Dashboard
+      </a>
+      
+      <div id="sidebarNav" class="pt-4 space-y-1">
+        <p class="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Your Modules</p>
+        </div>
     </nav>
+
+    <div class="p-4 border-t border-slate-100">
+      <button onclick="logout()" class="w-full flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+        Sign Out
+      </button>
+    </div>
   </aside>
 
-  <!-- MAIN -->
-  <main class="flex-1 p-6">
-    <header class="flex justify-between items-center mb-6">
-      <h2 class="text-lg font-semibold">System Overview</h2>
-      <button onclick="logout()" class="text-red-600 underline">Logout</button>
+  <main class="flex-1">
+    <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+      <div class="flex items-center gap-2 text-sm text-slate-500">
+        <span>System</span>
+        <span>/</span>
+        <span class="text-slate-900 font-medium">Overview</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="topBarUser" class="text-sm font-medium text-slate-700"></div>
+        <div class="w-8 h-8 rounded-full bg-slate-200 border border-slate-300"></div>
+      </div>
     </header>
 
-    <div class="mb-6">
-      <h1 id="welcomeText" class="text-2xl font-bold mb-1">Welcome</h1>
-      <p class="text-gray-500">Access verified</p>
-    </div>
+    <div class="p-8 max-w-6xl mx-auto">
+      <div class="mb-8">
+        <h1 id="welcomeText" class="text-3xl font-bold text-slate-900 tracking-tight">Welcome</h1>
+        <p class="text-slate-500 mt-1">Here is what's happening in your workspace today.</p>
+      </div>
 
-    <!-- USER INFO -->
-    <div id="userInfo"
-         class="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- injected -->
-    </div>
+      <div id="userInfo" class="bg-white border border-slate-200 rounded-xl p-6 mb-10 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-8">
+        </div>
 
-    <!-- PAGES -->
-    <h3 class="text-lg font-semibold mb-4">Available Modules</h3>
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-bold text-slate-800">Available Modules</h3>
+        <span class="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">Live Access</span>
+      </div>
 
-    <div id="pageCards"
-         class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <!-- injected -->
+      <div id="pageCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
     </div>
   </main>
 
 <script>
-/* ==========================
-   LOAD HOME DATA
-========================== */
 async function loadHome() {
   try {
     const res = await fetch(`${API}/company/me`, {
@@ -68,23 +93,23 @@ async function loadHome() {
     const user = data.user;
     const pages = data.pages || [];
 
-    // Welcome text
-    document.getElementById("welcomeText").innerText =
-      `Welcome, ${user.name.split(" ")[0]}`;
+    document.getElementById("welcomeText").innerText = `Welcome back, ${user.name.split(" ")[0]}!`;
+    document.getElementById("topBarUser").innerText = user.name;
 
-    // User info
     document.getElementById("userInfo").innerHTML = `
-      <div>
-        <div class="text-xs text-gray-500">Employee ID</div>
-        <div class="font-medium">${user.emp_id}</div>
+      <div class="flex flex-col">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Employee Identity</span>
+        <span class="text-slate-900 font-semibold mt-1">#${user.emp_id}</span>
       </div>
-      <div>
-        <div class="text-xs text-gray-500">Email</div>
-        <div class="font-medium">${user.email || "-"}</div>
+      <div class="flex flex-col">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Work Email</span>
+        <span class="text-slate-900 font-semibold mt-1">${user.email || "Not Provided"}</span>
       </div>
-      <div>
-        <div class="text-xs text-gray-500">Company</div>
-        <div class="font-medium">${user.company}</div>
+      <div class="flex flex-col">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Organization</span>
+        <span class="text-slate-900 font-semibold mt-1 flex items-center gap-2">
+           <span class="w-2 h-2 bg-green-500 rounded-full"></span> ${user.company}
+        </span>
       </div>
     `;
 
@@ -96,46 +121,48 @@ async function loadHome() {
   }
 }
 
-/* ==========================
-   SIDEBAR RENDER
-========================== */
 function renderSidebar(pages) {
   const sidebar = document.getElementById("sidebarNav");
-
   pages.forEach(p => {
     const item = document.createElement("div");
-    item.className =
-      "cursor-pointer text-gray-700 hover:text-blue-600 hover:underline";
-    item.innerText = p.name;
+    item.className = "flex items-center gap-3 px-3 py-2 text-slate-600 hover:text-blue-600 cursor-pointer rounded-lg transition-all sidebar-item text-sm font-medium";
+    item.innerHTML = `
+      <div class="w-1.5 h-1.5 bg-slate-300 rounded-full"></div>
+      ${p.name}
+    `;
     item.onclick = () => goToPage(p.route);
     sidebar.appendChild(item);
   });
 }
 
-/* ==========================
-   PAGE CARDS (MAIN DASHBOARD)
-========================== */
 function renderPageCards(pages) {
   const container = document.getElementById("pageCards");
   container.innerHTML = "";
 
   if (pages.length === 0) {
     container.innerHTML = `
-      <p class="text-gray-500 text-sm">
-        No modules assigned to your role.
-      </p>
+      <div class="col-span-full bg-slate-100 border-2 border-dashed border-slate-200 rounded-xl p-12 text-center">
+        <p class="text-slate-500 font-medium">No modules assigned to your current role.</p>
+      </div>
     `;
     return;
   }
 
   pages.forEach(p => {
     const card = document.createElement("div");
-    card.className =
-      "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50 transition";
+    card.className = "group bg-white border border-slate-200 p-6 rounded-xl shadow-sm transition-all duration-200 card-gradient cursor-pointer flex flex-col justify-between h-40";
 
     card.innerHTML = `
-      <div class="font-semibold text-lg mb-1">${p.name}</div>
-      <div class="text-sm text-gray-500">Open module</div>
+      <div>
+        <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        </div>
+        <div class="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">${p.name}</div>
+      </div>
+      <div class="flex items-center text-xs font-bold text-slate-400 uppercase tracking-widest mt-4">
+        Enter Module 
+        <svg class="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      </div>
     `;
 
     card.onclick = () => goToPage(p.route);
@@ -143,16 +170,14 @@ function renderPageCards(pages) {
   });
 }
 
-/* ==========================
-   NAVIGATION
-========================== */
 function goToPage(route) {
+  // Force absolute path (served by FastAPI)
+  if (!route.startsWith("/")) {
+    route = "/" + route;
+  }
+
   window.location.href = route;
 }
-
-/* ==========================
-   LOGOUT
-========================== */
 async function logout() {
   try {
     await fetch(`${API}/company/logout`, {
@@ -165,9 +190,6 @@ async function logout() {
   }
 }
 
-/* ==========================
-   INIT
-========================== */
 loadHome();
 </script>
 

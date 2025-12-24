@@ -10,6 +10,8 @@ import psycopg2
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 
 # =====================================
 # LOAD ENV (ISOLATED)
@@ -779,3 +781,11 @@ def get_company_feature_bundles(current=Depends(get_current_user)):
         }
         for r in rows
     ]
+
+
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "Frontend"
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
