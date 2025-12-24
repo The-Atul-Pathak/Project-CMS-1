@@ -81,11 +81,35 @@ class CreateUser(BaseModel):
     password: str
     is_company_admin: bool = False
 
-class UpdateUser(BaseModel):
+class UpdateUserWithRoles(BaseModel):
     name: str
     email: Optional[str] = None
     status: str
     is_company_admin: bool
+    role_ids: list[int] = []
+
+
+class CreateUserWithRoles(CreateUser):
+    role_ids: Optional[list[int]] = []
+
+class CreateUserWithRoles(BaseModel):
+    emp_id: str
+    name: str
+    email: Optional[str] = None
+    password: str
+    is_company_admin: bool = False
+    role_ids: list[int] = []
+
+class CreateRole(BaseModel):
+    name: str
+    description: Optional[str] = None
+    feature_ids: list[int]
+
+class UpdateRole(BaseModel):
+    name: str
+    description: Optional[str] = None
+    feature_ids: list[int]
+
 
 # =====================================
 # AUTH DEPENDENCY
@@ -239,13 +263,14 @@ def company_logout(current=Depends(get_current_user)):
     return {"message": "Logged out successfully"}
 
 # =====================================
-# HOME
+# HOME (DYNAMIC PERMISSIONS)
 # =====================================
 @app.get("/company/me")
 def get_company_home(current=Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
 
+    # ---- USER INFO ----
     cur.execute("""
         SELECT 
             u.emp_id,
@@ -258,24 +283,61 @@ def get_company_home(current=Depends(get_current_user)):
         WHERE u.id = %s AND u.company_id = %s
     """, (current["user_id"], current["company_id"]))
 
-    user = cur.fetchone()
-
-    if not user:
+    row = cur.fetchone()
+    if not row:
         cur.close()
         conn.close()
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404)
 
-    emp_id, name, email, is_company_admin, company_name = user
+    emp_id, name, email, is_admin, company_name = row
 
-    cur.execute("""
-        SELECT f.code, f.name
-        FROM company_features cf
-        JOIN features f ON cf.feature_id = f.id
-        WHERE cf.company_id = %s AND cf.enabled = TRUE
-        ORDER BY f.name
-    """, (current["company_id"],))
+    # ---- FEATURES RESOLUTION ----
+    if is_admin:
+        # Admin → all enabled company features
+        cur.execute("""
+            SELECT f.id, f.code, f.name
+            FROM company_features cf
+            JOIN features f ON f.id = cf.feature_id
+            WHERE cf.company_id = %s AND cf.enabled = TRUE
+        """, (current["company_id"],))
+    else:
+        # Normal user → roles → features (filtered by company_features)
+        cur.execute("""
+            SELECT DISTINCT f.id, f.code, f.name
+            FROM user_roles ur
+            JOIN roles r ON r.id = ur.role_id
+            JOIN roles_features rf ON rf.role_id = r.id
+            JOIN features f ON f.id = rf.feature_id
+            JOIN company_features cf ON cf.feature_id = f.id
+            WHERE ur.user_id = %s
+              AND r.company_id = %s
+              AND cf.enabled = TRUE
+        """, (current["user_id"], current["company_id"]))
 
     features = cur.fetchall()
+    feature_ids = [f[0] for f in features]
+
+    # ---- PAGES FROM FEATURES ----
+    pages = []
+    if feature_ids:
+        cur.execute("""
+            SELECT DISTINCT page_code, page_name, route
+            FROM feature_bundle_pages
+            WHERE feature_id = ANY(%s)
+            ORDER BY page_name
+        """, (feature_ids,))
+        pages = cur.fetchall()
+
+    # ---- ROLES (ONLY FOR NON-ADMIN) ----
+    roles = []
+    if not is_admin:
+        cur.execute("""
+            SELECT r.name
+            FROM user_roles ur
+            JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = %s
+        """, (current["user_id"],))
+        roles = [r[0] for r in cur.fetchall()]
 
     cur.close()
     conn.close()
@@ -286,12 +348,17 @@ def get_company_home(current=Depends(get_current_user)):
             "name": name,
             "email": email,
             "company": company_name,
-            "is_company_admin": is_company_admin
+            "is_company_admin": is_admin
         },
+        "roles": roles,
         "features": [
-            {"code": f[0], "name": f[1]} for f in features
+            {"code": f[1], "name": f[2]} for f in features
+        ],
+        "pages": [
+            {"code": p[0], "name": p[1], "route": p[2]} for p in pages
         ]
     }
+
 
 # =====================================
 # USERS
@@ -305,10 +372,16 @@ def list_users(current=Depends(get_current_user)):
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT id, emp_id, name, email, status, is_company_admin, created_at
-        FROM users
-        WHERE company_id = %s
-        ORDER BY created_at DESC
+        SELECT 
+            u.id, u.emp_id, u.name, u.email, u.status,
+            u.is_company_admin,
+            COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}')
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        LEFT JOIN roles r ON r.id = ur.role_id
+        WHERE u.company_id = %s
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
     """, (current["company_id"],))
 
     users = cur.fetchall()
@@ -323,12 +396,14 @@ def list_users(current=Depends(get_current_user)):
             "email": u[3],
             "status": u[4],
             "is_company_admin": u[5],
-            "created_at": u[6]
-        } for u in users
+            "roles": u[6]
+        }
+        for u in users
     ]
 
+
 @app.post("/company/users")
-def add_user(data: CreateUser, current=Depends(get_current_user)):
+def add_user(data: CreateUserWithRoles, current=Depends(get_current_user)):
     if not current["is_company_admin"]:
         raise HTTPException(status_code=403)
 
@@ -339,6 +414,7 @@ def add_user(data: CreateUser, current=Depends(get_current_user)):
         INSERT INTO users
         (company_id, emp_id, name, email, password_hash, is_company_admin)
         VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
     """, (
         current["company_id"],
         data.emp_id,
@@ -348,14 +424,29 @@ def add_user(data: CreateUser, current=Depends(get_current_user)):
         data.is_company_admin
     ))
 
+    user_id = cur.fetchone()[0]
+
+    # Assign roles ONLY if not admin
+    if not data.is_company_admin and data.role_ids:
+        for role_id in data.role_ids:
+            cur.execute("""
+                INSERT INTO user_roles (user_id, role_id)
+                VALUES (%s, %s)
+            """, (user_id, role_id))
+
     conn.commit()
     cur.close()
     conn.close()
 
     return {"message": "User created successfully"}
 
+
 @app.put("/company/users/{user_id}")
-def update_user(user_id: int, data: UpdateUser, current=Depends(get_current_user)):
+def update_user(
+    user_id: int,
+    data: UpdateUserWithRoles,
+    current=Depends(get_current_user)
+):
     if not current["is_company_admin"]:
         raise HTTPException(status_code=403)
 
@@ -383,11 +474,24 @@ def update_user(user_id: int, data: UpdateUser, current=Depends(get_current_user
         conn.close()
         raise HTTPException(status_code=404)
 
+    # 🔴 IMPORTANT PART
+    # Always reset roles
+    cur.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+
+    # Reassign roles only if NOT admin
+    if not data.is_company_admin:
+        for role_id in data.role_ids:
+            cur.execute("""
+                INSERT INTO user_roles (user_id, role_id)
+                VALUES (%s, %s)
+            """, (user_id, role_id))
+
     conn.commit()
     cur.close()
     conn.close()
 
-    return {"message": "User updated"}
+    return {"message": "User updated successfully"}
+
 
 # =====================================
 # USER SESSIONS
@@ -458,3 +562,220 @@ def terminate_user_session(session_id: int, current=Depends(get_current_user)):
     conn.close()
 
     return {"message": "Session terminated"}
+
+@app.get("/company/roles")
+def list_roles(current=Depends(get_current_user)):
+    if not current["is_company_admin"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            r.id,
+            r.name,
+            r.description,
+            COALESCE(array_agg(f.code) FILTER (WHERE f.code IS NOT NULL), '{}') AS features
+        FROM roles r
+        LEFT JOIN roles_features rf ON rf.role_id = r.id
+        LEFT JOIN features f ON f.id = rf.feature_id
+        WHERE r.company_id = %s
+        GROUP BY r.id
+        ORDER BY r.name
+    """, (current["company_id"],))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": r[0],
+            "name": r[1],
+            "description": r[2],
+            "features": r[3]
+        }
+        for r in rows
+    ]
+
+@app.post("/company/roles")
+def create_role(data: CreateRole, current=Depends(get_current_user)):
+    if not current["is_company_admin"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Validate features belong to company subscription
+    cur.execute("""
+        SELECT feature_id
+        FROM company_features
+        WHERE company_id = %s AND enabled = TRUE
+    """, (current["company_id"],))
+
+    allowed_features = {r[0] for r in cur.fetchall()}
+
+    if not set(data.feature_ids).issubset(allowed_features):
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="One or more features are not enabled for this company"
+        )
+
+    # Create role
+    cur.execute("""
+        INSERT INTO roles (company_id, name, description)
+        VALUES (%s, %s, %s)
+        RETURNING id
+    """, (
+        current["company_id"],
+        data.name,
+        data.description
+    ))
+
+    role_id = cur.fetchone()[0]
+
+    # Assign features to role
+    for feature_id in data.feature_ids:
+        cur.execute("""
+            INSERT INTO roles_features (role_id, feature_id)
+            VALUES (%s, %s)
+        """, (role_id, feature_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Role created successfully"}
+
+@app.put("/company/roles/{role_id}")
+def update_role(role_id: int, data: UpdateRole, current=Depends(get_current_user)):
+    if not current["is_company_admin"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Ensure role belongs to company
+    cur.execute("""
+        SELECT id FROM roles
+        WHERE id = %s AND company_id = %s
+    """, (role_id, current["company_id"]))
+
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    # Validate features
+    cur.execute("""
+        SELECT feature_id
+        FROM company_features
+        WHERE company_id = %s AND enabled = TRUE
+    """, (current["company_id"],))
+
+    allowed_features = {r[0] for r in cur.fetchall()}
+
+    if not set(data.feature_ids).issubset(allowed_features):
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid feature assignment"
+        )
+
+    # Update role
+    cur.execute("""
+        UPDATE roles
+        SET name = %s,
+            description = %s
+        WHERE id = %s
+    """, (
+        data.name,
+        data.description,
+        role_id
+    ))
+
+    # Reset role features
+    cur.execute("DELETE FROM roles_features WHERE role_id = %s", (role_id,))
+
+    for feature_id in data.feature_ids:
+        cur.execute("""
+            INSERT INTO roles_features (role_id, feature_id)
+            VALUES (%s, %s)
+        """, (role_id, feature_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Role updated successfully"}
+
+@app.delete("/company/roles/{role_id}")
+def delete_role(role_id: int, current=Depends(get_current_user)):
+    if not current["is_company_admin"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Prevent deleting role in use
+    cur.execute("""
+        SELECT 1 FROM user_roles WHERE role_id = %s LIMIT 1
+    """, (role_id,))
+
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="Role is assigned to users"
+        )
+
+    cur.execute("""
+        DELETE FROM roles
+        WHERE id = %s AND company_id = %s
+    """, (role_id, current["company_id"]))
+
+    if cur.rowcount == 0:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Role deleted successfully"}
+
+@app.get("/company/feature-bundles")
+def get_company_feature_bundles(current=Depends(get_current_user)):
+    if not current["is_company_admin"]:
+        raise HTTPException(status_code=403)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT f.id, f.code, f.name
+        FROM company_features cf
+        JOIN features f ON f.id = cf.feature_id
+        WHERE cf.company_id = %s
+          AND cf.enabled = TRUE
+        ORDER BY f.name
+    """, (current["company_id"],))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": r[0],
+            "code": r[1],
+            "name": r[2]
+        }
+        for r in rows
+    ]

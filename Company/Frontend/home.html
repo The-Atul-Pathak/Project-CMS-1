@@ -20,7 +20,8 @@
     <div class="text-xl font-bold mb-6">Management OS</div>
 
     <nav id="sidebarNav" class="space-y-2">
-      <div class="font-medium text-gray-700">Dashboard</div>
+      <div class="font-medium text-gray-700 mb-2">Dashboard</div>
+      <!-- pages injected here -->
     </nav>
   </aside>
 
@@ -37,19 +38,24 @@
     </div>
 
     <!-- USER INFO -->
-    <div id="userInfo" class="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div id="userInfo"
+         class="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
       <!-- injected -->
     </div>
 
-    <!-- FEATURES -->
+    <!-- PAGES -->
     <h3 class="text-lg font-semibold mb-4">Available Modules</h3>
 
-    <div id="features" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="pageCards"
+         class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <!-- injected -->
     </div>
   </main>
 
 <script>
+/* ==========================
+   LOAD HOME DATA
+========================== */
 async function loadHome() {
   try {
     const res = await fetch(`${API}/company/me`, {
@@ -60,11 +66,13 @@ async function loadHome() {
 
     const data = await res.json();
     const user = data.user;
-    const features = data.features;
+    const pages = data.pages || [];
 
+    // Welcome text
     document.getElementById("welcomeText").innerText =
       `Welcome, ${user.name.split(" ")[0]}`;
 
+    // User info
     document.getElementById("userInfo").innerHTML = `
       <div>
         <div class="text-xs text-gray-500">Employee ID</div>
@@ -80,61 +88,86 @@ async function loadHome() {
       </div>
     `;
 
-    const featureBox = document.getElementById("features");
-    const sidebarNav = document.getElementById("sidebarNav");
-
-    // ADMIN BUTTON
-    if (user.is_company_admin) {
-      const adminNav = document.createElement("div");
-      adminNav.className =
-        "cursor-pointer text-blue-600 font-medium hover:underline";
-      adminNav.innerText = "User Management";
-      adminNav.onclick = () => window.location.href = "user_management.html";
-      sidebarNav.appendChild(adminNav);
-
-      const adminCard = document.createElement("div");
-      adminCard.className =
-        "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50";
-      adminCard.innerHTML = `
-        <div class="font-semibold">User Management</div>
-        <div class="text-sm text-gray-500">Manage employees & sessions</div>
-      `;
-      adminCard.onclick = () => window.location.href = "user_management.html";
-      featureBox.appendChild(adminCard);
-    }
-
-    // FEATURES
-    features.forEach(f => {
-      const navItem = document.createElement("div");
-      navItem.className = "cursor-pointer text-gray-700 hover:underline";
-      navItem.innerText = f.name;
-      sidebarNav.appendChild(navItem);
-
-      const card = document.createElement("div");
-      card.className =
-        "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50";
-      card.innerHTML = `
-        <div class="font-semibold">${f.name}</div>
-        <div class="text-sm text-gray-500">Open module</div>
-      `;
-      card.onclick = () => alert(`Opening ${f.code} module`);
-      featureBox.appendChild(card);
-    });
+    renderSidebar(pages);
+    renderPageCards(pages);
 
   } catch (err) {
     logout();
   }
 }
 
-async function logout() {
-  await fetch(`${API}/company/logout`, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token }
+/* ==========================
+   SIDEBAR RENDER
+========================== */
+function renderSidebar(pages) {
+  const sidebar = document.getElementById("sidebarNav");
+
+  pages.forEach(p => {
+    const item = document.createElement("div");
+    item.className =
+      "cursor-pointer text-gray-700 hover:text-blue-600 hover:underline";
+    item.innerText = p.name;
+    item.onclick = () => goToPage(p.route);
+    sidebar.appendChild(item);
   });
-  localStorage.removeItem("company_token");
-  window.location.href = "login.html";
 }
 
+/* ==========================
+   PAGE CARDS (MAIN DASHBOARD)
+========================== */
+function renderPageCards(pages) {
+  const container = document.getElementById("pageCards");
+  container.innerHTML = "";
+
+  if (pages.length === 0) {
+    container.innerHTML = `
+      <p class="text-gray-500 text-sm">
+        No modules assigned to your role.
+      </p>
+    `;
+    return;
+  }
+
+  pages.forEach(p => {
+    const card = document.createElement("div");
+    card.className =
+      "bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50 transition";
+
+    card.innerHTML = `
+      <div class="font-semibold text-lg mb-1">${p.name}</div>
+      <div class="text-sm text-gray-500">Open module</div>
+    `;
+
+    card.onclick = () => goToPage(p.route);
+    container.appendChild(card);
+  });
+}
+
+/* ==========================
+   NAVIGATION
+========================== */
+function goToPage(route) {
+  window.location.href = route;
+}
+
+/* ==========================
+   LOGOUT
+========================== */
+async function logout() {
+  try {
+    await fetch(`${API}/company/logout`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token }
+    });
+  } finally {
+    localStorage.removeItem("company_token");
+    window.location.href = "login.html";
+  }
+}
+
+/* ==========================
+   INIT
+========================== */
 loadHome();
 </script>
 

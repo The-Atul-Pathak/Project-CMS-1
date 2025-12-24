@@ -15,182 +15,383 @@
 
 <body class="bg-gray-100 min-h-screen p-6">
 
-  <!-- HEADER -->
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold">User Management</h1>
-    <button onclick="goBack()" class="text-blue-600 underline">← Back</button>
+<!-- HEADER -->
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-bold">User Management</h1>
+  <button onclick="goBack()" class="text-blue-600 underline">← Back</button>
+</div>
+
+<!-- ADD USER -->
+<div class="bg-white p-4 rounded shadow mb-6">
+  <h2 class="text-lg font-semibold mb-4">Add New User</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <input id="emp_id" placeholder="Employee ID" class="border p-2 rounded" />
+    <input id="name" placeholder="Name" class="border p-2 rounded" />
+    <input id="email" placeholder="Email (optional)" class="border p-2 rounded" />
+    <input id="password" type="password" placeholder="Password" class="border p-2 rounded" />
   </div>
 
-  <!-- ADD USER -->
-  <div class="bg-white p-4 rounded shadow mb-6">
-    <h2 class="text-lg font-semibold mb-4">Add New User</h2>
+  <label class="block text-sm mb-1">Roles</label>
+  <select id="roles" multiple class="border p-2 rounded w-full mb-3 text-sm"></select>
+  <p class="text-xs text-gray-500 mb-3">Hold Ctrl / Cmd to select multiple roles</p>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-      <input id="emp_id" placeholder="Employee ID" class="border p-2 rounded" />
-      <input id="name" placeholder="Name" class="border p-2 rounded" />
-      <input id="email" placeholder="Email (optional)" class="border p-2 rounded" />
-      <input id="password" type="password" placeholder="Password" class="border p-2 rounded" />
-    </div>
+  <label class="flex items-center gap-2 mb-3">
+    <input type="checkbox" id="is_admin" />
+    <span class="text-sm">Company Admin (ignores roles)</span>
+  </label>
 
-    <label class="flex items-center gap-2 mb-3">
-      <input type="checkbox" id="is_admin" />
-      <span class="text-sm">Company Admin</span>
+  <button onclick="addUser()" class="bg-blue-600 text-white px-4 py-2 rounded">
+    Add User
+  </button>
+
+  <p id="addResult" class="mt-2 text-sm"></p>
+</div>
+
+<!-- TABS -->
+<div class="mb-4 flex gap-6">
+  <button onclick="showTab('users')" id="tab-users" class="border-b-2 border-blue-600 pb-1">Users</button>
+  <button onclick="showTab('sessions')" id="tab-sessions" class="pb-1">Sessions</button>
+  <button onclick="showTab('roles')" id="tab-roles" class="pb-1">Roles</button>
+</div>
+
+<!-- USERS TAB -->
+<div id="usersTab" class="bg-white p-4 rounded shadow">
+  <table class="w-full border">
+    <thead class="bg-gray-200">
+      <tr>
+        <th class="p-2 text-left">Emp ID</th>
+        <th class="p-2 text-left">Name</th>
+        <th class="p-2 text-left">Email</th>
+        <th class="p-2 text-left">Roles</th>
+        <th class="p-2 text-left">Admin</th>
+        <th class="p-2 text-left">Status</th>
+        <th class="p-2 text-left">Action</th>
+      </tr>
+    </thead>
+    <tbody id="userTable"></tbody>
+  </table>
+</div>
+
+<!-- SESSIONS TAB -->
+<div id="sessionsTab" class="bg-white p-4 rounded shadow hidden">
+  <table class="w-full border">
+    <thead class="bg-gray-200">
+      <tr>
+        <th class="p-2">Name</th>
+        <th class="p-2">Emp ID</th>
+        <th class="p-2">IP</th>
+        <th class="p-2">Login</th>
+        <th class="p-2">Expires</th>
+        <th class="p-2">Action</th>
+      </tr>
+    </thead>
+    <tbody id="sessionTable"></tbody>
+  </table>
+</div>
+
+<!-- ROLES TAB -->
+<div id="rolesTab" class="bg-white p-4 rounded shadow hidden">
+  <h2 class="font-semibold mb-3">Create / Edit Role</h2>
+
+  <input id="role_name" placeholder="Role Name" class="border p-2 rounded w-full mb-2" />
+  <input id="role_desc" placeholder="Description" class="border p-2 rounded w-full mb-2" />
+
+  <label class="text-sm">Feature Bundles</label>
+  <select id="role_features" multiple class="border p-2 rounded w-full mb-3"></select>
+
+  <button onclick="createRole()" class="bg-green-600 text-white px-4 py-2 rounded">
+    Save Role
+  </button>
+
+  <hr class="my-4" />
+
+  <table class="w-full border">
+    <thead class="bg-gray-200">
+      <tr>
+        <th class="p-2 text-left">Role</th>
+        <th class="p-2 text-left">Features</th>
+        <th class="p-2 text-left">Action</th>
+      </tr>
+    </thead>
+    <tbody id="rolesTable"></tbody>
+  </table>
+</div>
+
+<!-- EDIT USER MODAL -->
+<div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded p-6 w-full max-w-md">
+    <h3 class="text-lg font-bold mb-4">Edit User</h3>
+
+    <input type="hidden" id="edit_user_id" />
+    <input id="edit_name" class="border p-2 rounded w-full mb-3" />
+    <input id="edit_email" class="border p-2 rounded w-full mb-3" />
+
+    <select id="edit_roles" multiple class="border p-2 rounded w-full mb-3"></select>
+
+    <select id="edit_status" class="border p-2 rounded w-full mb-3">
+      <option value="active">Active</option>
+      <option value="leave">Leave</option>
+      <option value="terminated">Terminated</option>
+    </select>
+
+    <label class="flex items-center gap-2 mb-4">
+      <input type="checkbox" id="edit_admin" />
+      <span>Company Admin</span>
     </label>
 
-    <button onclick="addUser()" class="bg-blue-600 text-white px-4 py-2 rounded">
-      Add User
-    </button>
-
-    <p id="addResult" class="mt-2 text-sm"></p>
-  </div>
-
-  <!-- TABS -->
-  <div class="mb-4 flex gap-4">
-    <button onclick="showTab('users')" id="tab-users"
-      class="font-medium border-b-2 border-blue-600 pb-1">
-      Users
-    </button>
-    <button onclick="showTab('sessions')" id="tab-sessions"
-      class="font-medium text-gray-500 pb-1">
-      User Sessions
-    </button>
-    <button disabled class="font-medium text-gray-400 pb-1">
-      Roles (Coming Soon)
-    </button>
-  </div>
-
-  <!-- USERS TABLE -->
-  <div id="usersTab" class="bg-white p-4 rounded shadow">
-    <table class="w-full border">
-      <thead class="bg-gray-200">
-        <tr>
-          <th class="p-2 text-left">Emp ID</th>
-          <th class="p-2 text-left">Name</th>
-          <th class="p-2 text-left">Email</th>
-          <th class="p-2 text-left">Admin</th>
-          <th class="p-2 text-left">Status</th>
-          <th class="p-2 text-left">Action</th>
-        </tr>
-      </thead>
-      <tbody id="userTable"></tbody>
-    </table>
-  </div>
-
-  <!-- SESSIONS TABLE -->
-  <div id="sessionsTab" class="bg-white p-4 rounded shadow hidden">
-    <table class="w-full border">
-      <thead class="bg-gray-200">
-        <tr>
-          <th class="p-2">Name</th>
-          <th class="p-2">Emp ID</th>
-          <th class="p-2">IP</th>
-          <th class="p-2">Login</th>
-          <th class="p-2">Expires</th>
-          <th class="p-2">Action</th>
-        </tr>
-      </thead>
-      <tbody id="sessionTable"></tbody>
-    </table>
-  </div>
-
-  <!-- EDIT USER MODAL -->
-  <div id="editModal"
-       class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded p-6 w-full max-w-md">
-      <h3 class="text-lg font-bold mb-4">Edit User</h3>
-
-      <input type="hidden" id="edit_user_id" />
-
-      <input id="edit_name" class="border p-2 rounded w-full mb-3" placeholder="Name" />
-      <input id="edit_email" class="border p-2 rounded w-full mb-3" placeholder="Email" />
-
-      <select id="edit_status" class="border p-2 rounded w-full mb-3">
-        <option value="active">Active</option>
-        <option value="leave">Leave</option>
-        <option value="terminated">Terminated</option>
-      </select>
-
-      <label class="flex items-center gap-2 mb-4">
-        <input type="checkbox" id="edit_admin" />
-        <span>Company Admin</span>
-      </label>
-
-      <div class="flex justify-end gap-3">
-        <button onclick="closeEditModal()">Cancel</button>
-        <button onclick="updateUser()" class="bg-blue-600 text-white px-4 py-2 rounded">
-          Save
-        </button>
-      </div>
+    <div class="flex justify-end gap-3">
+      <button onclick="closeEditModal()">Cancel</button>
+      <button onclick="updateUser()" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
     </div>
   </div>
+</div>
+
+<!-- EDIT ROLE MODAL -->
+<div id="editRoleModal"
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded p-6 w-full max-w-md">
+    <h3 class="text-lg font-bold mb-4">Edit Role</h3>
+
+    <input type="hidden" id="edit_role_id" />
+
+    <input id="edit_role_name"
+           class="border p-2 rounded w-full mb-3"
+           placeholder="Role Name" />
+
+    <input id="edit_role_desc"
+           class="border p-2 rounded w-full mb-3"
+           placeholder="Description" />
+
+    <label class="text-sm mb-1 block">Feature Bundles</label>
+    <select id="edit_role_features"
+            multiple
+            class="border p-2 rounded w-full mb-4 text-sm">
+    </select>
+
+    <div class="flex justify-end gap-3">
+      <button onclick="closeEditRoleModal()">Cancel</button>
+      <button onclick="updateRole()"
+              class="bg-blue-600 text-white px-4 py-2 rounded">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+
 
 <script>
+/* =======================
+   TAB HANDLING
+======================= */
 function showTab(tab) {
-  document.getElementById("usersTab").classList.toggle("hidden", tab !== "users");
-  document.getElementById("sessionsTab").classList.toggle("hidden", tab !== "sessions");
-
-  document.getElementById("tab-users").classList.toggle("border-blue-600", tab === "users");
-  document.getElementById("tab-sessions").classList.toggle("border-blue-600", tab === "sessions");
+  ["users", "sessions", "roles"].forEach(t => {
+    document.getElementById(t + "Tab").classList.toggle("hidden", t !== tab);
+    document.getElementById("tab-" + t).classList.toggle("border-b-2", t === tab);
+    document.getElementById("tab-" + t).classList.toggle("border-blue-600", t === tab);
+  });
 }
 
-/* ===== USERS ===== */
-
+/* =======================
+   USERS
+======================= */
 async function loadUsers() {
   const res = await fetch(`${API}/company/users`, {
     headers: { Authorization: "Bearer " + token }
   });
   const users = await res.json();
 
-  const table = document.getElementById("userTable");
-  table.innerHTML = "";
+  userTable.innerHTML = "";
 
   users.forEach(u => {
-    table.innerHTML += `
+    userTable.innerHTML += `
       <tr class="border-t">
         <td class="p-2">${u.emp_id}</td>
         <td class="p-2">${u.name}</td>
         <td class="p-2">${u.email || "-"}</td>
+        <td class="p-2">${u.roles && u.roles.length ? u.roles.join(", ") : "-"}</td>
         <td class="p-2">${u.is_company_admin ? "Yes" : "No"}</td>
         <td class="p-2">${u.status}</td>
         <td class="p-2">
-          <button class="text-blue-600 mr-2" onclick='openEditModal(${JSON.stringify(u)})'>Edit</button>
+          <button class="text-blue-600" onclick='openEditModal(${JSON.stringify(u)})'>
+            Edit
+          </button>
         </td>
       </tr>
     `;
   });
 }
 
-async function addUser() {
+/* =======================
+   ROLES
+======================= */
+async function loadRoles() {
+  const res = await fetch(`${API}/company/roles`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const roles = await res.json();
+
+  rolesTable.innerHTML = "";
+
+  const roleSelects = [
+    document.getElementById("roles"),
+    document.getElementById("edit_roles")
+  ];
+
+  roleSelects.forEach(s => s.innerHTML = "");
+
+  roles.forEach(r => {
+    roleSelects.forEach(s => {
+      s.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+    });
+
+    rolesTable.innerHTML += `
+      <tr class="border-t">
+        <td class="p-2">${r.name}</td>
+        <td class="p-2">${r.features.join(", ")}</td>
+        <td class="p-2">
+        <button class="text-blue-600 mr-2"
+                onclick='openEditRoleModal(${JSON.stringify(r)})'>
+          Edit
+        </button>
+        <button class="text-red-600"
+                onclick="deleteRole(${r.id})">
+          Delete
+        </button>
+
+        </td>
+      </tr>
+    `;
+  });
+}
+
+/* =======================
+   FEATURE BUNDLES (FROM company_features)
+======================= */
+async function loadFeatureBundles() {
+  const res = await fetch(`${API}/company/feature-bundles`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  const bundles = await res.json();
+  const selects = [
+    document.getElementById("role_features"),
+    document.getElementById("edit_role_features")
+  ];
+
+  selects.forEach(select => {
+    select.innerHTML = "";
+    bundles.forEach(b => {
+      select.innerHTML += `<option value="${b.id}">${b.name}</option>`;
+    });
+  });
+
+}
+
+/* =======================
+   CREATE ROLE
+======================= */
+async function createRole() {
   const payload = {
-    emp_id: emp_id.value,
-    name: name.value,
-    email: email.value || null,
-    password: password.value,
-    is_company_admin: is_admin.checked
+    name: role_name.value,
+    description: role_desc.value,
+    feature_ids: [...role_features.selectedOptions].map(o => parseInt(o.value))
   };
 
-  const res = await fetch(`${API}/company/users`, {
+  await fetch(`${API}/company/roles`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + token
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
   });
 
-  const data = await res.json();
-  addResult.innerText = data.message || data.detail;
-  loadUsers();
+  role_name.value = "";
+  role_desc.value = "";
+  role_features.selectedIndex = -1;
+
+  loadRoles();
 }
 
-/* ===== EDIT ===== */
+function openEditRoleModal(role) {
+  document.getElementById("edit_role_id").value = role.id;
+  document.getElementById("edit_role_name").value = role.name;
+  document.getElementById("edit_role_desc").value = role.description || "";
 
-function openEditModal(user) {
-  edit_user_id.value = user.id;
-  edit_name.value = user.name;
-  edit_email.value = user.email || "";
-  edit_status.value = user.status;
-  edit_admin.checked = user.is_company_admin;
+  const select = document.getElementById("edit_role_features");
+
+  // Reset selection
+  [...select.options].forEach(o => {
+    o.selected = role.features.includes(o.text);
+  });
+
+  editRoleModal.classList.remove("hidden");
+  editRoleModal.classList.add("flex");
+}
+
+function closeEditRoleModal() {
+  editRoleModal.classList.add("hidden");
+}
+
+async function updateRole() {
+  const roleId = document.getElementById("edit_role_id").value;
+
+  const payload = {
+    name: document.getElementById("edit_role_name").value.trim(),
+    description: document.getElementById("edit_role_desc").value.trim(),
+    feature_ids: [...document.getElementById("edit_role_features").selectedOptions]
+      .map(o => parseInt(o.value))
+  };
+
+  const res = await fetch(`${API}/company/roles/${roleId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    alert(JSON.stringify(data.detail || data, null, 2));
+    return;
+  }
+
+  closeEditRoleModal();
+  loadRoles();
+}
+
+
+/* =======================
+   DELETE ROLE
+======================= */
+async function deleteRole(id) {
+  if (!confirm("Delete this role?")) return;
+
+  await fetch(`${API}/company/roles/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  loadRoles();
+}
+
+/* =======================
+   EDIT USER
+======================= */
+function openEditModal(u) {
+  edit_user_id.value = u.id;
+  edit_name.value = u.name;
+  edit_email.value = u.email || "";
+  edit_status.value = u.status;
+  edit_admin.checked = u.is_company_admin;
+
+  [...edit_roles.options].forEach(o => {
+    o.selected = u.roles?.includes(o.text);
+  });
+
   editModal.classList.remove("hidden");
   editModal.classList.add("flex");
 }
@@ -200,20 +401,21 @@ function closeEditModal() {
 }
 
 async function updateUser() {
-  const id = edit_user_id.value;
-
   const payload = {
     name: edit_name.value,
     email: edit_email.value || null,
     status: edit_status.value,
-    is_company_admin: edit_admin.checked
+    is_company_admin: edit_admin.checked,
+    role_ids: edit_admin.checked
+      ? []
+      : [...edit_roles.selectedOptions].map(o => parseInt(o.value))
   };
 
-  await fetch(`${API}/company/users/${id}`, {
+  await fetch(`${API}/company/users/${edit_user_id.value}`, {
     method: "PUT",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + token
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
   });
@@ -222,29 +424,25 @@ async function updateUser() {
   loadUsers();
 }
 
-/* ===== SESSIONS ===== */
-
-function formatDate(v) {
-  return new Date(v).toLocaleString();
-}
-
+/* =======================
+   SESSIONS
+======================= */
 async function loadSessions() {
   const res = await fetch(`${API}/company/user-sessions`, {
     headers: { Authorization: "Bearer " + token }
   });
   const sessions = await res.json();
 
-  const table = document.getElementById("sessionTable");
-  table.innerHTML = "";
+  sessionTable.innerHTML = "";
 
   sessions.forEach(s => {
-    table.innerHTML += `
+    sessionTable.innerHTML += `
       <tr class="border-t">
         <td class="p-2">${s.name}</td>
         <td class="p-2">${s.emp_id}</td>
         <td class="p-2">${s.ip_address}</td>
-        <td class="p-2">${formatDate(s.login_at)}</td>
-        <td class="p-2">${formatDate(s.expires_at)}</td>
+        <td class="p-2">${new Date(s.login_at).toLocaleString()}</td>
+        <td class="p-2">${new Date(s.expires_at).toLocaleString()}</td>
         <td class="p-2">
           <button class="text-red-600" onclick="terminateSession(${s.session_id})">
             Expire
@@ -266,15 +464,77 @@ async function terminateSession(id) {
   loadSessions();
 }
 
-/* ===== HELPERS ===== */
+async function addUser() {
+  const empIdEl = document.getElementById("emp_id");
+  const nameEl = document.getElementById("name");
+  const emailEl = document.getElementById("email");
+  const passwordEl = document.getElementById("password");
+  const isAdminEl = document.getElementById("is_admin");
+  const rolesEl = document.getElementById("roles");
 
+  if (!empIdEl.value.trim() || !nameEl.value.trim() || !passwordEl.value.trim()) {
+    addResult.innerText = "Emp ID, Name and Password are required";
+    return;
+  }
+
+  const selectedRoles = [...rolesEl.selectedOptions].map(o => parseInt(o.value));
+
+  const payload = {
+    emp_id: empIdEl.value.trim(),
+    name: nameEl.value.trim(),
+    email: emailEl.value ? emailEl.value.trim() : null,
+    password: passwordEl.value,
+    is_company_admin: isAdminEl.checked,
+    role_ids: isAdminEl.checked ? [] : selectedRoles
+  };
+
+  const res = await fetch(`${API}/company/users`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    addResult.innerText = JSON.stringify(data.detail, null, 2);
+    return;
+  }
+
+  addResult.innerText = data.message || "User created successfully";
+
+  // Reset form
+  empIdEl.value = "";
+  nameEl.value = "";
+  emailEl.value = "";
+  passwordEl.value = "";
+  isAdminEl.checked = false;
+  [...rolesEl.options].forEach(o => o.selected = false);
+
+  loadUsers();
+}
+
+
+
+/* =======================
+   HELPERS
+======================= */
 function goBack() {
   window.location.href = "home.html";
 }
 
+/* =======================
+   INITIAL LOAD
+======================= */
+loadFeatureBundles();
+loadRoles();
 loadUsers();
 loadSessions();
 </script>
+
 
 </body>
 </html>
