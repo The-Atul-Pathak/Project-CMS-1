@@ -75,25 +75,20 @@ class CompanyLogin(BaseModel):
     emp_id: Optional[str] = None
     email: Optional[str] = None
     password: str
-
 class CreateUser(BaseModel):
     emp_id: str
     name: str
     email: Optional[str] = None
     password: str
     is_company_admin: bool = False
-
 class UpdateUserWithRoles(BaseModel):
     name: str
     email: Optional[str] = None
     status: str
     is_company_admin: bool
     role_ids: list[int] = []
-
-
 class CreateUserWithRoles(CreateUser):
     role_ids: Optional[list[int]] = []
-
 class CreateUserWithRoles(BaseModel):
     emp_id: str
     name: str
@@ -101,16 +96,32 @@ class CreateUserWithRoles(BaseModel):
     password: str
     is_company_admin: bool = False
     role_ids: list[int] = []
-
 class CreateRole(BaseModel):
     name: str
     description: Optional[str] = None
     feature_ids: list[int]
-
 class UpdateRole(BaseModel):
+
     name: str
     description: Optional[str] = None
     feature_ids: list[int]
+class UpdateUserProfile(BaseModel):
+
+    phone: Optional[str] = None
+    alternate_phone: Optional[str] = None
+
+    address_line_1: Optional[str] = None
+    address_line_2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
 
 
 # =====================================
@@ -165,6 +176,18 @@ def get_current_user(
         "session_id": session_id,
         "is_company_admin": user[1]
     }
+
+def get_user_roles(conn, user_id):
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT r.name
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = %s
+    """, (user_id,))
+    roles = [r[0] for r in cur.fetchall()]
+    cur.close()
+    return roles
 
 # =====================================
 # LOGIN
@@ -346,6 +369,7 @@ def get_company_home(current=Depends(get_current_user)):
 
     return {
         "user": {
+            "id": current["user_id"],
             "emp_id": emp_id,
             "name": name,
             "email": email,
@@ -367,8 +391,6 @@ def get_company_home(current=Depends(get_current_user)):
 # =====================================
 @app.get("/company/users")
 def list_users(current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -406,8 +428,6 @@ def list_users(current=Depends(get_current_user)):
 
 @app.post("/company/users")
 def add_user(data: CreateUserWithRoles, current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -449,8 +469,6 @@ def update_user(
     data: UpdateUserWithRoles,
     current=Depends(get_current_user)
 ):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -500,8 +518,6 @@ def update_user(
 # =====================================
 @app.get("/company/user-sessions")
 def get_all_user_sessions(current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -540,8 +556,6 @@ def get_all_user_sessions(current=Depends(get_current_user)):
 
 @app.delete("/company/user-sessions/{session_id}")
 def terminate_user_session(session_id: int, current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -567,8 +581,6 @@ def terminate_user_session(session_id: int, current=Depends(get_current_user)):
 
 @app.get("/company/roles")
 def list_roles(current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -603,8 +615,6 @@ def list_roles(current=Depends(get_current_user)):
 
 @app.post("/company/roles")
 def create_role(data: CreateRole, current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -654,8 +664,6 @@ def create_role(data: CreateRole, current=Depends(get_current_user)):
 
 @app.put("/company/roles/{role_id}")
 def update_role(role_id: int, data: UpdateRole, current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -717,8 +725,6 @@ def update_role(role_id: int, data: UpdateRole, current=Depends(get_current_user
 
 @app.delete("/company/roles/{role_id}")
 def delete_role(role_id: int, current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -754,8 +760,6 @@ def delete_role(role_id: int, current=Depends(get_current_user)):
 
 @app.get("/company/feature-bundles")
 def get_company_feature_bundles(current=Depends(get_current_user)):
-    if not current["is_company_admin"]:
-        raise HTTPException(status_code=403)
 
     conn = get_db()
     cur = conn.cursor()
@@ -782,6 +786,256 @@ def get_company_feature_bundles(current=Depends(get_current_user)):
         for r in rows
     ]
 
+@app.get("/company/users/{user_id}/profile")
+def get_employee_profile(
+    user_id: int,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # ---- FETCH TARGET USER ----
+    cur.execute("""
+        SELECT 
+            u.id,
+            u.emp_id,
+            u.name,
+            u.email,
+            u.status,
+            u.is_company_admin,
+            c.company_name
+        FROM users u
+        JOIN companies c ON c.id = u.company_id
+        WHERE u.id = %s AND u.company_id = %s
+    """, (user_id, current["company_id"]))
+
+    user = cur.fetchone()
+    if not user:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+
+    (
+        target_id,
+        emp_id,
+        name,
+        email,
+        status,
+        is_company_admin,
+        company_name
+    ) = user
+
+    # ---- PROFILE DATA ----
+    cur.execute("""
+        SELECT
+            phone,
+            alternate_phone,
+            address_line_1,
+            address_line_2,
+            city,
+            state,
+            postal_code,
+            country,
+            emergency_contact_name,
+            emergency_contact_phone
+        FROM user_profile_data
+        WHERE user_id = %s AND company_id = %s
+    """, (target_id, current["company_id"]))
+
+    profile = cur.fetchone()
+
+
+    # ---- VIEWER ROLES ----
+    viewer_roles = get_user_roles(conn, current["user_id"])
+    target_roles = get_user_roles(conn, target_id)
+
+    is_self = current["user_id"] == target_id
+    is_admin = current["is_company_admin"]
+    is_hr = "HR" in viewer_roles
+
+    # ---- PERMISSION CHECK ----
+    if not (is_self or is_admin or is_hr):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # ---- FEATURES RESOLUTION (TARGET USER) ----
+    if is_company_admin:
+        cur.execute("""
+            SELECT f.code, f.name
+            FROM company_features cf
+            JOIN features f ON f.id = cf.feature_id
+            WHERE cf.company_id = %s AND cf.enabled = TRUE
+        """, (current["company_id"],))
+    else:
+        cur.execute("""
+            SELECT DISTINCT f.code, f.name
+            FROM user_roles ur
+            JOIN roles r ON r.id = ur.role_id
+            JOIN roles_features rf ON rf.role_id = r.id
+            JOIN features f ON f.id = rf.feature_id
+            JOIN company_features cf ON cf.feature_id = f.id
+            WHERE ur.user_id = %s
+              AND r.company_id = %s
+              AND cf.enabled = TRUE
+        """, (target_id, current["company_id"]))
+
+    features = cur.fetchall()
+
+    # ---- ACTIVITY SNAPSHOT (MINIMAL FOR NOW) ----
+    cur.execute("""
+        SELECT MAX(created_at)
+        FROM user_sessions
+        WHERE user_id = %s
+    """, (target_id,))
+
+    last_login = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "basic": {
+            "id": target_id,
+            "emp_id": emp_id,
+            "name": name,
+            "email": email,
+            "company": company_name,
+            "status": status,
+            "is_company_admin": is_company_admin
+        },
+        "roles": target_roles,
+        "features": [
+            {"code": f[0], "name": f[1]} for f in features
+        ],
+        "activity": {
+            "last_login": last_login
+        },
+        "permissions": {
+            "can_edit": is_admin or is_hr,
+            "can_edit_status": is_admin or is_hr
+        },
+        "profile": {
+            "phone": profile[0] if profile else None,
+            "alternate_phone": profile[1] if profile else None,
+            "address": {
+                "line1": profile[2] if profile else None,
+                "line2": profile[3] if profile else None,
+                "city": profile[4] if profile else None,
+                "state": profile[5] if profile else None,
+                "postal_code": profile[6] if profile else None,
+                "country": profile[7] if profile else None
+            },
+            "emergency_contact": {
+                "name": profile[8] if profile else None,
+                "phone": profile[9] if profile else None
+            }
+        }
+
+    }
+
+@app.put("/company/users/me/profile")
+def update_my_profile(
+    data: UpdateUserProfile,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Ensure profile row exists
+    cur.execute("""
+        SELECT id FROM user_profile_data
+        WHERE user_id = %s AND company_id = %s
+    """, (current["user_id"], current["company_id"]))
+
+    exists = cur.fetchone()
+
+    if not exists:
+        cur.execute("""
+            INSERT INTO user_profile_data (user_id, company_id)
+            VALUES (%s, %s)
+        """, (current["user_id"], current["company_id"]))
+
+    # Update profile
+    cur.execute("""
+        UPDATE user_profile_data
+        SET
+            phone = %s,
+            alternate_phone = %s,
+            address_line_1 = %s,
+            address_line_2 = %s,
+            city = %s,
+            state = %s,
+            postal_code = %s,
+            country = %s,
+            emergency_contact_name = %s,
+            emergency_contact_phone = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = %s AND company_id = %s
+    """, (
+        data.phone,
+        data.alternate_phone,
+        data.address_line_1,
+        data.address_line_2,
+        data.city,
+        data.state,
+        data.postal_code,
+        data.country,
+        data.emergency_contact_name,
+        data.emergency_contact_phone,
+        current["user_id"],
+        current["company_id"]
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Profile updated successfully"}
+
+@app.put("/company/users/me/password")
+def change_my_password(
+    data: ChangePassword,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Fetch current password hash
+    cur.execute("""
+        SELECT password_hash
+        FROM users
+        WHERE id = %s AND company_id = %s
+    """, (current["user_id"], current["company_id"]))
+
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404)
+
+    password_hash = row[0]
+
+    # Verify old password
+    if not verify_password(data.current_password, password_hash):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+
+    # Update password
+    new_hash = pwd_context.hash(data.new_password)
+
+    cur.execute("""
+        UPDATE users
+        SET password_hash = %s
+        WHERE id = %s AND company_id = %s
+    """, (new_hash, current["user_id"], current["company_id"]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Password updated successfully"}
 
 
 

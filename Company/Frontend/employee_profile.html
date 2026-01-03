@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Employee Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+
+<div class="max-w-5xl mx-auto p-6 space-y-6">
+
+  <!-- HEADER -->
+  <div class="bg-white rounded-lg shadow p-6 flex justify-between items-center">
+    <div>
+      <h1 id="empName" class="text-2xl font-semibold">Employee Name</h1>
+      <p id="empId" class="text-sm text-gray-500">EMP-XXX</p>
+    </div>
+    <span id="empStatus"
+      class="px-3 py-1 rounded-full text-sm font-medium bg-gray-200 text-gray-700">
+      Status
+    </span>
+  </div>
+
+  <!-- BASIC INFO -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Basic Information</h2>
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div>
+        <p class="text-gray-500">Employee ID</p>
+        <p id="fieldEmpId" class="font-medium">—</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Email</p>
+        <p id="fieldEmail" class="font-medium">—</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Company</p>
+        <p id="fieldCompany" class="font-medium">—</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Company Admin</p>
+        <p id="fieldAdmin" class="font-medium">—</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROLE & ACCESS -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Role & Access</h2>
+
+    <div class="mb-4">
+      <p class="text-gray-500 text-sm mb-1">Assigned Roles</p>
+      <div id="rolesContainer" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <div>
+      <p class="text-gray-500 text-sm mb-1">Enabled Features</p>
+      <ul id="featuresList" class="list-disc list-inside text-sm"></ul>
+    </div>
+  </div>
+
+  <!-- CONTACT INFO -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold">Contact Information</h2>
+      <button id="editBtn"
+        class="hidden text-sm text-blue-600 hover:underline">
+        Edit
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div>
+        <p class="text-gray-500">Phone</p>
+        <p id="fieldPhone" class="font-medium"></p>
+        <input id="inputPhone" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div>
+        <p class="text-gray-500">Alternate Phone</p>
+        <p id="fieldAltPhone" class="font-medium"></p>
+        <input id="inputAltPhone" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div class="col-span-2">
+        <p class="text-gray-500">Address Line 1</p>
+        <p id="fieldAddr1" class="font-medium"></p>
+        <input id="inputAddr1" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div class="col-span-2">
+        <p class="text-gray-500">Address Line 2</p>
+        <p id="fieldAddr2" class="font-medium"></p>
+        <input id="inputAddr2" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div>
+        <p class="text-gray-500">City</p>
+        <p id="fieldCity" class="font-medium"></p>
+        <input id="inputCity" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div>
+        <p class="text-gray-500">State</p>
+        <p id="fieldState" class="font-medium"></p>
+        <input id="inputState" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div>
+        <p class="text-gray-500">Postal Code</p>
+        <p id="fieldPostal" class="font-medium"></p>
+        <input id="inputPostal" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div>
+        <p class="text-gray-500">Country</p>
+        <p id="fieldCountry" class="font-medium"></p>
+        <input id="inputCountry" class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+
+      <div class="col-span-2">
+        <p class="text-gray-500">Emergency Contact</p>
+        <p id="fieldEmergency" class="font-medium"></p>
+        <input id="inputEmergencyName" placeholder="Name"
+          class="hidden w-full border rounded px-2 py-1 text-sm mb-2" />
+        <input id="inputEmergencyPhone" placeholder="Phone"
+          class="hidden w-full border rounded px-2 py-1 text-sm" />
+      </div>
+    </div>
+
+    <div id="actionBtns" class="hidden mt-6 flex gap-3">
+      <button onclick="saveProfile()"
+        class="px-4 py-2 bg-blue-600 text-white rounded text-sm">
+        Save
+      </button>
+      <button onclick="location.reload()"
+        class="px-4 py-2 bg-gray-200 rounded text-sm">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- ACTIVITY -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Activity Snapshot</h2>
+    <p class="text-sm text-gray-500">
+      Last Login: <span id="fieldLastLogin" class="font-medium">—</span>
+    </p>
+  </div>
+
+<!-- CHANGE PASSWORD -->
+
+<div id="passwordSection" class="bg-white rounded-lg shadow p-6">
+  <h2 class="text-lg font-semibold mb-4">Change Password</h2>
+
+  <div class="grid grid-cols-2 gap-4 text-sm">
+    <div class="col-span-2">
+      <label class="text-gray-500">Current Password</label>
+      <input id="currentPassword" type="password"
+        class="w-full border rounded px-2 py-1 text-sm" />
+    </div>
+
+    <div>
+      <label class="text-gray-500">New Password</label>
+      <input id="newPassword" type="password"
+        class="w-full border rounded px-2 py-1 text-sm" />
+    </div>
+
+    <div>
+      <label class="text-gray-500">Confirm New Password</label>
+      <input id="confirmPassword" type="password"
+        class="w-full border rounded px-2 py-1 text-sm" />
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <button onclick="changePassword()"
+      class="px-4 py-2 bg-red-600 text-white rounded text-sm">
+      Update Password
+    </button>
+  </div>
+</div>
+
+
+
+</div>
+
+<script>
+  const API = "http://127.0.0.1:9000";
+  const token = localStorage.getItem("company_token");
+  
+  // 1. Get the ID of the user we are VIEWING from the URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewedUserId = urlParams.get("user_id");
+
+  // 2. Helper function to decode the JWT Token to find out who is LOGGED IN
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 3. Determine if "isSelf"
+  let isSelf = false;
+  
+  if (token && viewedUserId) {
+    const payload = parseJwt(token);
+    // We check common JWT ID fields ('id', 'user_id', or 'sub')
+    const loggedInId = payload.id || payload.user_id || payload.sub;
+    
+    // Compare Logged In ID vs Viewed ID
+    if (Number(loggedInId) === Number(viewedUserId)) {
+      isSelf = true;
+    }
+  }
+
+  // 4. Hide restricted elements immediately if not self
+  if (!isSelf) {
+    const editBtn = document.getElementById("editBtn");
+    const actionBtns = document.getElementById("actionBtns");
+    const passwordSection = document.getElementById("passwordSection");
+
+    if (editBtn) editBtn.remove();
+    if (actionBtns) actionBtns.remove();
+    if (passwordSection) passwordSection.remove();
+  }
+
+  // 5. Fetch Profile Data
+  fetch(`${API}/company/users/${viewedUserId}/profile`, {
+    headers: { Authorization: "Bearer " + token }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("Failed to load profile");
+    return res.json();
+  })
+  .then(data => {
+    // Populate Basic Info
+    document.getElementById("empName").innerText = data.basic.name;
+    document.getElementById("empId").innerText = data.basic.emp_id;
+    document.getElementById("empStatus").innerText = data.basic.status;
+
+    document.getElementById("fieldEmpId").innerText = data.basic.emp_id;
+    document.getElementById("fieldEmail").innerText = data.basic.email || "—";
+    document.getElementById("fieldCompany").innerText = data.basic.company;
+    document.getElementById("fieldAdmin").innerText = data.basic.is_company_admin ? "Yes" : "No";
+
+    // Populate Roles
+    const rolesContainer = document.getElementById("rolesContainer");
+    rolesContainer.innerHTML = "";
+    data.roles.forEach(r => {
+      const b = document.createElement("span");
+      b.className = "px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded";
+      b.innerText = r;
+      rolesContainer.appendChild(b);
+    });
+
+    // Populate Features
+    const featuresList = document.getElementById("featuresList");
+    featuresList.innerHTML = "";
+    data.features.forEach(f => {
+      const li = document.createElement("li");
+      li.innerText = f.name;
+      featuresList.appendChild(li);
+    });
+
+    // Populate Contact Info
+    const p = data.profile || {};
+    document.getElementById("fieldPhone").innerText = p.phone || "—";
+    document.getElementById("fieldAltPhone").innerText = p.alternate_phone || "—";
+    document.getElementById("fieldAddr1").innerText = p.address?.line1 || "—";
+    document.getElementById("fieldAddr2").innerText = p.address?.line2 || "—";
+    document.getElementById("fieldCity").innerText = p.address?.city || "—";
+    document.getElementById("fieldState").innerText = p.address?.state || "—";
+    document.getElementById("fieldPostal").innerText = p.address?.postal_code || "—";
+    document.getElementById("fieldCountry").innerText = p.address?.country || "—";
+    
+    document.getElementById("fieldEmergency").innerText = p.emergency_contact?.name
+      ? `${p.emergency_contact.name} (${p.emergency_contact.phone})`
+      : "—";
+
+    document.getElementById("fieldLastLogin").innerText = data.activity.last_login || "—";
+
+    // Only show the "Edit" button if it is self (it was hidden via CSS class by default)
+    // Note: If !isSelf, the button was removed from DOM entirely in step 4.
+    if (isSelf) {
+      const editBtn = document.getElementById("editBtn");
+      if(editBtn) {
+        editBtn.classList.remove("hidden");
+        editBtn.onclick = enableEdit;
+      }
+    }
+  })
+  .catch(err => console.error(err));
+
+  // --- Actions ---
+
+  function enableEdit() {
+    document.querySelectorAll("p[id^='field']").forEach(e => e.classList.add("hidden"));
+    document.querySelectorAll("input").forEach(e => e.classList.remove("hidden"));
+    document.getElementById("actionBtns").classList.remove("hidden");
+    document.getElementById("editBtn").classList.add("hidden");
+  }
+
+  function saveProfile() {
+    if (!isSelf) {
+      alert("You are not allowed to perform this action.");
+      return;
+    }
+    
+    // Grab values
+    const payload = {
+      phone: document.getElementById("inputPhone").value,
+      alternate_phone: document.getElementById("inputAltPhone").value,
+      address_line_1: document.getElementById("inputAddr1").value,
+      address_line_2: document.getElementById("inputAddr2").value,
+      city: document.getElementById("inputCity").value,
+      state: document.getElementById("inputState").value,
+      postal_code: document.getElementById("inputPostal").value,
+      country: document.getElementById("inputCountry").value,
+      emergency_contact_name: document.getElementById("inputEmergencyName").value,
+      emergency_contact_phone: document.getElementById("inputEmergencyPhone").value
+    };
+
+    fetch(`${API}/company/users/me/profile`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error();
+      location.reload();
+    })
+    .catch(() => alert("Failed to update profile"));
+  }
+
+  function changePassword() {
+    if (!isSelf) {
+      alert("You are not allowed to perform this action.");
+      return;
+    }
+    
+    const current = document.getElementById("currentPassword").value;
+    const next = document.getElementById("newPassword").value;
+    const confirm = document.getElementById("confirmPassword").value;
+
+    if (!current || !next || !confirm) {
+      alert("All password fields are required");
+      return;
+    }
+
+    if (next !== confirm) {
+      alert("New passwords do not match");
+      return;
+    }
+
+    if (next.length < 8) {
+      alert("Password must be at least 8 characters long");
+      return;
+    }
+
+    fetch(`${API}/company/users/me/password`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        current_password: current,
+        new_password: next
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error();
+      alert("Password updated successfully");
+      document.getElementById("currentPassword").value = "";
+      document.getElementById("newPassword").value = "";
+      document.getElementById("confirmPassword").value = "";
+    })
+    .catch(() => alert("Incorrect current password"));
+  }
+</script>
+
+</body>
+</html>
