@@ -150,6 +150,52 @@
     </p>
   </div>
 
+<!-- ATTENDANCE (SELF ONLY) -->
+<div id="attendanceSection" class="bg-white rounded-lg shadow p-6 hidden">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">My Attendance</h2>
+
+    <input type="month" id="attendanceMonth"
+      class="border rounded px-2 py-1 text-sm" />
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="grid grid-cols-4 gap-4 text-sm mb-6">
+    <div class="bg-gray-50 rounded p-3 text-center">
+      <p class="text-gray-500">Present</p>
+      <p id="attPresent" class="text-xl font-semibold">0</p>
+    </div>
+    <div class="bg-gray-50 rounded p-3 text-center">
+      <p class="text-gray-500">Absent</p>
+      <p id="attAbsent" class="text-xl font-semibold">0</p>
+    </div>
+    <div class="bg-gray-50 rounded p-3 text-center">
+      <p class="text-gray-500">Leave</p>
+      <p id="attLeave" class="text-xl font-semibold">0</p>
+    </div>
+    <div class="bg-gray-50 rounded p-3 text-center">
+      <p class="text-gray-500">Attendance %</p>
+      <p id="attPercent" class="text-xl font-semibold">0%</p>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-3 py-2 text-left">Date</th>
+          <th class="px-3 py-2 text-left">Status</th>
+          <th class="px-3 py-2 text-left">Marked By</th>
+          <th class="px-3 py-2 text-left">Marked At</th>
+        </tr>
+      </thead>
+      <tbody id="attendanceTable"></tbody>
+    </table>
+  </div>
+</div>
+
+
 <!-- CHANGE PASSWORD -->
 
 <div id="passwordSection" class="bg-white rounded-lg shadow p-6">
@@ -390,6 +436,69 @@
     })
     .catch(() => alert("Incorrect current password"));
   }
+
+if (isSelf) {
+  document.getElementById("attendanceSection").classList.remove("hidden");
+
+  const monthInput = document.getElementById("attendanceMonth");
+  const now = new Date();
+  monthInput.value = now.toISOString().slice(0, 7);
+
+  loadAttendance(monthInput.value);
+
+  monthInput.onchange = () => loadAttendance(monthInput.value);
+}
+
+function loadAttendance(month) {
+  // SUMMARY
+  fetch(`${API}/company/attendance/user/${viewedUserId}/summary?month=${month}`, {
+    headers: { Authorization: "Bearer " + token }
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("attPresent").innerText = data.present;
+    document.getElementById("attAbsent").innerText = data.absent;
+    document.getElementById("attLeave").innerText = data.leave;
+    document.getElementById("attPercent").innerText =
+      `${data.attendance_percentage}%`;
+  });
+
+  // RECORDS
+  fetch(`${API}/company/attendance/user/${viewedUserId}?month=${month}`, {
+    headers: { Authorization: "Bearer " + token }
+  })
+  .then(res => res.json())
+  .then(rows => {
+    const tbody = document.getElementById("attendanceTable");
+    tbody.innerHTML = "";
+
+    if (rows.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-center text-gray-400 py-4">
+            No attendance records
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="px-3 py-2">${r.date}</td>
+        <td class="px-3 py-2">${r.status}</td>
+        <td class="px-3 py-2">${r.marked_by || "-"}</td>
+        <td class="px-3 py-2 text-gray-500">
+          ${r.marked_at ? new Date(r.marked_at).toLocaleString() : "-"}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+
 </script>
 
 </body>

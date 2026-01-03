@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from jose import jwt
 from passlib.context import CryptContext
 import psycopg2
@@ -122,7 +122,10 @@ class UpdateUserProfile(BaseModel):
 class ChangePassword(BaseModel):
     current_password: str
     new_password: str
-
+class MarkAttendance(BaseModel):
+    user_id: int
+    date: date
+    status: str
 
 # =====================================
 # AUTH DEPENDENCY
@@ -188,6 +191,13 @@ def get_user_roles(conn, user_id):
     roles = [r[0] for r in cur.fetchall()]
     cur.close()
     return roles
+
+def is_hr_or_admin(conn, user_id, is_company_admin):
+    if is_company_admin:
+        return True
+
+    roles = get_user_roles(conn, user_id)
+    return "HR" in roles
 
 # =====================================
 # LOGIN
@@ -1037,6 +1047,203 @@ def change_my_password(
 
     return {"message": "Password updated successfully"}
 
+@app.get("/company/attendance")
+def get_attendance(date: date, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    cur.execute("""
+        SELECT
+            u.id,
+            u.emp_id,
+            u.name,
+            COALESCE(a.status, 'Unmarked') AS status,
+            a.marked_by
+        FROM users u
+        LEFT JOIN attendance a
+          ON a.user_id = u.id
+         AND a.date = %s
+         AND a.company_id = %s
+        WHERE u.company_id = %s
+          AND u.status = 'active'
+        ORDER BY u.emp_id
+    """, (date, current["company_id"], current["company_id"]))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "user_id": r[0],
+            "emp_id": r[1],
+            "name": r[2],
+            "status": r[3],
+            "marked_by": r[4]
+        }
+        for r in rows
+    ]
+
+@app.post("/company/attendance")
+def mark_attendance(data: MarkAttendance, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403)
+
+    cur.execute("""
+        INSERT INTO attendance
+            (company_id, user_id, date, status, marked_by, marked_at)
+        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (company_id, user_id, date)
+        DO UPDATE SET
+            status = EXCLUDED.status,
+            marked_by = EXCLUDED.marked_by,
+            marked_at = CURRENT_TIMESTAMP
+    """, (
+        current["company_id"],
+        data.user_id,
+        data.date,
+        data.status,
+        current["user_id"]
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Attendance updated"}
+
+@app.get("/company/attendance/summary")
+def attendance_summary(date: date, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403)
+
+    cur.execute("""
+        SELECT status, COUNT(*)
+        FROM attendance
+        WHERE company_id = %s AND date = %s
+        GROUP BY status
+    """, (current["company_id"], date))
+
+    counts = {r[0]: r[1] for r in cur.fetchall()}
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM users
+        WHERE company_id = %s AND status = 'active'
+    """, (current["company_id"],))
+
+    total = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "present": counts.get("Present", 0),
+        "absent": counts.get("Absent", 0),
+        "leave": counts.get("Leave", 0),
+        "total_employees": total
+    }
+
+@app.get("/company/attendance/user/{user_id}/summary")
+def employee_attendance_summary(
+    user_id: int,
+    month: str,   # YYYY-MM
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not (
+        is_hr_or_admin(conn, current["user_id"], current["is_company_admin"])
+        or current["user_id"] == user_id
+    ):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403)
+
+
+    cur.execute("""
+        SELECT status, COUNT(*)
+        FROM attendance
+        WHERE company_id = %s
+          AND user_id = %s
+          AND TO_CHAR(date, 'YYYY-MM') = %s
+        GROUP BY status
+    """, (current["company_id"], user_id, month))
+
+    counts = {r[0]: r[1] for r in cur.fetchall()}
+
+    present = counts.get("Present", 0)
+    absent = counts.get("Absent", 0)
+    leave = counts.get("Leave", 0)
+    total = present + absent + leave
+
+    cur.close()
+    conn.close()
+
+    return {
+        "present": present,
+        "absent": absent,
+        "leave": leave,
+        "attendance_percentage": round((present / total) * 100, 2) if total else 0
+    }
+
+@app.get("/company/attendance/user/{user_id}")
+def employee_attendance_records(
+    user_id: int,
+    month: str,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not (
+        is_hr_or_admin(conn, current["user_id"], current["is_company_admin"])
+        or current["user_id"] == user_id
+    ):
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=403)
+
+
+    cur.execute("""
+        SELECT date, status, marked_by, marked_at
+        FROM attendance
+        WHERE company_id = %s
+          AND user_id = %s
+          AND TO_CHAR(date, 'YYYY-MM') = %s
+        ORDER BY date DESC
+    """, (current["company_id"], user_id, month))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "date": r[0],
+            "status": r[1],
+            "marked_by": r[2],
+            "marked_at": r[3]
+        }
+        for r in rows
+    ]
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent

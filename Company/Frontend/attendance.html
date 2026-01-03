@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Attendance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+
+    const headers = {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    };
+  </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+<!-- HEADER -->
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-bold">Attendance</h1>
+  <input id="datePicker" type="date"
+         class="border rounded px-3 py-2"
+         onchange="loadAttendance()" />
+</div>
+
+<!-- SUMMARY -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="bg-white p-4 rounded shadow">
+    <p class="text-gray-500 text-sm">Present</p>
+    <p id="presentCount" class="text-2xl font-bold text-green-600">0</p>
+  </div>
+  <div class="bg-white p-4 rounded shadow">
+    <p class="text-gray-500 text-sm">Absent</p>
+    <p id="absentCount" class="text-2xl font-bold text-red-600">0</p>
+  </div>
+  <div class="bg-white p-4 rounded shadow">
+    <p class="text-gray-500 text-sm">Leave</p>
+    <p id="leaveCount" class="text-2xl font-bold text-yellow-600">0</p>
+  </div>
+  <div class="bg-white p-4 rounded shadow">
+    <p class="text-gray-500 text-sm">Total Employees</p>
+    <p id="totalCount" class="text-2xl font-bold">0</p>
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="bg-white rounded shadow overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-200">
+      <tr>
+        <th class="p-3 text-left">Emp ID</th>
+        <th class="p-3 text-left">Name</th>
+        <th class="p-3 text-left">Status</th>
+        <th class="p-3 text-left">Action</th>
+      </tr>
+    </thead>
+    <tbody id="attendanceTable"></tbody>
+  </table>
+</div>
+
+<!-- MODAL -->
+<div id="employeeModal"
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+  <div class="bg-white w-3/4 max-w-3xl rounded shadow p-6 relative">
+    <button onclick="closeModal()"
+            class="absolute top-3 right-3 text-gray-500">✕</button>
+
+    <h2 id="modalName" class="text-xl font-bold mb-2"></h2>
+
+    <!-- SUMMARY -->
+    <div class="grid grid-cols-4 gap-4 mb-4">
+      <div><strong>Present:</strong> <span id="mPresent"></span></div>
+      <div><strong>Absent:</strong> <span id="mAbsent"></span></div>
+      <div><strong>Leave:</strong> <span id="mLeave"></span></div>
+      <div><strong>%:</strong> <span id="mPercent"></span></div>
+    </div>
+
+    <!-- TABLE -->
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="p-2 text-left">Date</th>
+          <th class="p-2 text-left">Status</th>
+        </tr>
+      </thead>
+      <tbody id="modalTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const datePicker = document.getElementById("datePicker");
+  datePicker.valueAsDate = new Date();
+
+  async function loadAttendance() {
+    const date = datePicker.value;
+
+    // SUMMARY
+    const s = await fetch(`${API}/company/attendance/summary?date=${date}`, { headers });
+    const summary = await s.json();
+
+    presentCount.textContent = summary.present;
+    absentCount.textContent = summary.absent;
+    leaveCount.textContent = summary.leave;
+    totalCount.textContent = summary.total_employees;
+
+    // TABLE
+    const r = await fetch(`${API}/company/attendance?date=${date}`, { headers });
+    const rows = await r.json();
+
+    attendanceTable.innerHTML = "";
+
+    rows.forEach(u => {
+      attendanceTable.innerHTML += `
+        <tr class="border-t hover:bg-gray-50 cursor-pointer"
+            onclick="openModal(${u.user_id}, '${u.name}')">
+          <td class="p-3">${u.emp_id}</td>
+          <td class="p-3">${u.name}</td>
+          <td class="p-3">${u.status}</td>
+          <td class="p-3 space-x-2">
+            ${["Present","Absent","Leave"].map(st =>
+              `<button onclick="event.stopPropagation(); mark(${u.user_id}, '${st}')"
+                class="px-2 py-1 rounded border">${st}</button>`
+            ).join("")}
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  async function mark(user_id, status) {
+    await fetch(`${API}/company/attendance`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        user_id,
+        date: datePicker.value,
+        status
+      })
+    });
+    loadAttendance();
+  }
+
+  async function openModal(user_id, name) {
+    modalName.textContent = name;
+    employeeModal.classList.remove("hidden");
+    employeeModal.classList.add("flex");
+
+    const month = datePicker.value.slice(0,7);
+
+    const s = await fetch(`${API}/company/attendance/user/${user_id}/summary?month=${month}`, { headers });
+    const sum = await s.json();
+
+    mPresent.textContent = sum.present;
+    mAbsent.textContent = sum.absent;
+    mLeave.textContent = sum.leave;
+    mPercent.textContent = sum.attendance_percentage + "%";
+
+    const r = await fetch(`${API}/company/attendance/user/${user_id}?month=${month}`, { headers });
+    const rows = await r.json();
+
+    modalTable.innerHTML = "";
+    rows.forEach(r => {
+      modalTable.innerHTML += `
+        <tr class="border-t">
+          <td class="p-2">${r.date}</td>
+          <td class="p-2">${r.status}</td>
+        </tr>
+      `;
+    });
+  }
+
+  function closeModal() {
+    employeeModal.classList.add("hidden");
+  }
+
+  loadAttendance();
+</script>
+
+</body>
+</html>
