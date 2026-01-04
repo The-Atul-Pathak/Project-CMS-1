@@ -195,6 +195,229 @@
   </div>
 </div>
 
+<!-- LEAVES (SELF ONLY) -->
+<div id="leaveSection" class="bg-white rounded-lg shadow p-6 hidden">
+
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">My Leave Requests</h2>
+    <button onclick="openLeaveForm()"
+      class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">
+      Apply Leave
+    </button>
+  </div>
+
+  <!-- LEAVE TABLE -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-3 py-2 text-left">Type</th>
+          <th class="px-3 py-2 text-left">From</th>
+          <th class="px-3 py-2 text-left">To</th>
+          <th class="px-3 py-2 text-left">Days</th>
+          <th class="px-3 py-2 text-left">Status</th>
+          <th class="px-3 py-2 text-left">Action</th>
+        </tr>
+      </thead>
+      <tbody id="leaveTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- APPLY LEAVE MODAL -->
+<div id="leaveModal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center z-50">
+
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+    <h3 class="text-lg font-semibold mb-4">Apply Leave</h3>
+
+    <div class="space-y-3 text-sm">
+      <div>
+        <label class="text-gray-500">Leave Type</label>
+        <select id="leaveType" class="w-full border rounded px-2 py-1">
+          <option value="Casual">Casual</option>
+          <option value="Sick">Sick</option>
+          <option value="Earned">Earned</option>
+          <option value="Unpaid">Unpaid</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-gray-500">Start Date</label>
+          <input type="date" id="leaveStart"
+            class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="text-gray-500">End Date</label>
+          <input type="date" id="leaveEnd"
+            class="w-full border rounded px-2 py-1" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-gray-500">Reason</label>
+        <textarea id="leaveReason"
+          class="w-full border rounded px-2 py-1 text-sm"></textarea>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-5">
+      <button onclick="closeLeaveForm()"
+        class="px-3 py-1.5 bg-gray-200 rounded text-sm">
+        Cancel
+      </button>
+      <button onclick="submitLeave()"
+        class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">
+        Submit
+      </button>
+    </div>
+  </div>
+</div>
+<!-- LEAVES (SELF ONLY) -->
+<div id="leaveSection" class="bg-white rounded-lg shadow p-6 hidden">
+
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-semibold">My Leave Requests</h2>
+    <button onclick="openLeaveForm()"
+      class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">
+      Apply Leave
+    </button>
+  </div>
+
+  <!-- LEAVE TABLE -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-3 py-2 text-left">Type</th>
+          <th class="px-3 py-2 text-left">From</th>
+          <th class="px-3 py-2 text-left">To</th>
+          <th class="px-3 py-2 text-left">Days</th>
+          <th class="px-3 py-2 text-left">Status</th>
+          <th class="px-3 py-2 text-left">Action</th>
+        </tr>
+      </thead>
+      <tbody id="leaveTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- APPLY LEAVE MODAL -->
+<div id="leaveModal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center z-50">
+
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+    <h3 class="text-lg font-semibold mb-4">Apply Leave</h3>
+
+    <div class="space-y-3 text-sm">
+      <div>
+        <label class="text-gray-500">Leave Type</label>
+        <select id="leaveType" class="w-full border rounded px-2 py-1">
+          <option value="Casual">Casual</option>
+          <option value="Sick">Sick</option>
+          <option value="Earned">Earned</option>
+          <option value="Unpaid">Unpaid</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-gray-500">Start Date</label>
+          <input type="date" id="leaveStart"
+            class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="text-gray-500">End Date</label>
+          <input type="date" id="leaveEnd"
+            class="w-full border rounded px-2 py-1" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-gray-500">Reason</label>
+        <textarea id="leaveReason"
+          class="w-full border rounded px-2 py-1 text-sm"></textarea>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-5">
+      <button onclick="closeLeaveForm()"
+        class="px-3 py-1.5 bg-gray-200 rounded text-sm">
+        Cancel
+      </button>
+      <button onclick="submitLeave()"
+        class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">
+        Submit
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- LEAVE DETAILS MODAL -->
+<div id="leaveDetailsModal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center z-50">
+
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+    <h3 class="text-lg font-semibold mb-4">Leave Details</h3>
+
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div>
+        <p class="text-gray-500">Leave Type</p>
+        <p id="ldType" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Status</p>
+        <p id="ldStatus" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Start Date</p>
+        <p id="ldStart" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">End Date</p>
+        <p id="ldEnd" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Total Days</p>
+        <p id="ldDays" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Applied At</p>
+        <p id="ldApplied" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Reviewed By</p>
+        <p id="ldReviewedBy" class="font-medium"></p>
+      </div>
+
+      <div>
+        <p class="text-gray-500">Reviewed At</p>
+        <p id="ldReviewedAt" class="font-medium"></p>
+      </div>
+
+      <div class="col-span-2">
+        <p class="text-gray-500">Review Notes</p>
+        <p id="ldNotes" class="font-medium text-gray-700"></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end mt-6">
+      <button onclick="closeLeaveDetails()"
+        class="px-4 py-2 bg-gray-200 rounded text-sm">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+
 
 <!-- CHANGE PASSWORD -->
 
@@ -496,6 +719,147 @@ function loadAttendance(month) {
       tbody.appendChild(tr);
     });
   });
+}
+
+if (isSelf) {
+  document.getElementById("leaveSection").classList.remove("hidden");
+  loadMyLeaves();
+}
+
+function loadMyLeaves() {
+  fetch(`${API}/company/leaves/me`, {
+    headers: { Authorization: "Bearer " + token }
+  })
+  .then(res => res.json())
+  .then(rows => {
+    const tbody = document.getElementById("leaveTable");
+    tbody.innerHTML = "";
+
+    if (rows.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="text-center text-gray-400 py-4">
+            No leave requests found
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    rows.forEach(l => {
+    const tr = document.createElement("tr");
+    tr.className = "cursor-pointer hover:bg-gray-50";
+    tr.onclick = () => openLeaveDetails(l);
+
+
+      const badgeColor =
+        l.status === "Approved" ? "bg-green-100 text-green-700" :
+        l.status === "Rejected" ? "bg-red-100 text-red-700" :
+        l.status === "Cancelled" ? "bg-gray-200 text-gray-600" :
+        "bg-yellow-100 text-yellow-700";
+
+      tr.innerHTML = `
+        <td class="px-3 py-2">${l.leave_type}</td>
+        <td class="px-3 py-2">${l.start_date}</td>
+        <td class="px-3 py-2">${l.end_date}</td>
+        <td class="px-3 py-2">${l.total_days}</td>
+        <td class="px-3 py-2">
+          <span class="px-2 py-0.5 rounded text-xs ${badgeColor}">
+            ${l.status}
+          </span>
+        </td>
+        <td class="px-3 py-2">
+          ${
+            l.status === "Pending"
+              ? `<button class="text-red-600 text-xs"
+                onclick="event.stopPropagation(); cancelLeave(${l.id})">Cancel</button>`
+              : "-"
+          }
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function openLeaveForm() {
+  document.getElementById("leaveModal").classList.remove("hidden");
+}
+
+function closeLeaveForm() {
+  document.getElementById("leaveModal").classList.add("hidden");
+}
+
+function submitLeave() {
+  const payload = {
+    leave_type: document.getElementById("leaveType").value,
+    start_date: document.getElementById("leaveStart").value,
+    end_date: document.getElementById("leaveEnd").value,
+    reason: document.getElementById("leaveReason").value
+  };
+
+  if (!payload.start_date || !payload.end_date) {
+    alert("Please select start and end dates");
+    return;
+  }
+
+  fetch(`${API}/company/leaves`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error();
+    closeLeaveForm();
+    loadMyLeaves();
+  })
+  .catch(() => alert("Failed to submit leave"));
+}
+
+function cancelLeave(id) {
+  if (!confirm("Cancel this leave request?")) return;
+
+  fetch(`${API}/company/leaves/${id}/cancel`, {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + token }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error();
+    loadMyLeaves();
+  })
+  .catch(() => alert("Unable to cancel leave"));
+}
+
+function openLeaveDetails(leave) {
+  document.getElementById("ldType").innerText = leave.leave_type;
+  document.getElementById("ldStatus").innerText = leave.status;
+  document.getElementById("ldStart").innerText = leave.start_date;
+  document.getElementById("ldEnd").innerText = leave.end_date;
+  document.getElementById("ldDays").innerText = leave.total_days;
+  document.getElementById("ldApplied").innerText =
+    leave.applied_at
+      ? new Date(leave.applied_at).toLocaleString()
+      : "-";
+
+  document.getElementById("ldReviewedBy").innerText =
+    leave.reviewed_by || "—";
+
+  document.getElementById("ldReviewedAt").innerText =
+    leave.reviewed_at
+      ? new Date(leave.reviewed_at).toLocaleString()
+      : "—";
+
+  document.getElementById("ldNotes").innerText =
+    leave.review_notes || "—";
+
+  document.getElementById("leaveDetailsModal").classList.remove("hidden");
+}
+
+function closeLeaveDetails() {
+  document.getElementById("leaveDetailsModal").classList.add("hidden");
 }
 
 

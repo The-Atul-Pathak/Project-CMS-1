@@ -126,6 +126,14 @@ class MarkAttendance(BaseModel):
     user_id: int
     date: date
     status: str
+class ApplyLeave(BaseModel):
+    leave_type: str
+    start_date: date
+    end_date: date
+    reason: Optional[str] = None
+class ReviewLeave(BaseModel):
+    status: str   # Approved | Rejected
+    review_notes: Optional[str] = None
 
 # =====================================
 # AUTH DEPENDENCY
@@ -192,16 +200,9 @@ def get_user_roles(conn, user_id):
     cur.close()
     return roles
 
-def is_hr_or_admin(conn, user_id, is_company_admin):
-    if is_company_admin:
-        return True
-
-    roles = get_user_roles(conn, user_id)
-    return "HR" in roles
-
-# =====================================
-# LOGIN
-# =====================================
+# ===============================================================
+# ===============================================================
+# ===============================================================
 @app.post("/company/login")
 def company_login(data: CompanyLogin, request: Request):
     conn = get_db()
@@ -278,9 +279,6 @@ def company_login(data: CompanyLogin, request: Request):
 
     return {"access_token": token}
 
-# =====================================
-# LOGOUT
-# =====================================
 @app.post("/company/logout")
 def company_logout(current=Depends(get_current_user)):
     conn = get_db()
@@ -297,9 +295,6 @@ def company_logout(current=Depends(get_current_user)):
 
     return {"message": "Logged out successfully"}
 
-# =====================================
-# HOME (DYNAMIC PERMISSIONS)
-# =====================================
 @app.get("/company/me")
 def get_company_home(current=Depends(get_current_user)):
     conn = get_db()
@@ -395,10 +390,6 @@ def get_company_home(current=Depends(get_current_user)):
         ]
     }
 
-
-# =====================================
-# USERS
-# =====================================
 @app.get("/company/users")
 def list_users(current=Depends(get_current_user)):
 
@@ -435,7 +426,6 @@ def list_users(current=Depends(get_current_user)):
         for u in users
     ]
 
-
 @app.post("/company/users")
 def add_user(data: CreateUserWithRoles, current=Depends(get_current_user)):
 
@@ -471,7 +461,6 @@ def add_user(data: CreateUserWithRoles, current=Depends(get_current_user)):
     conn.close()
 
     return {"message": "User created successfully"}
-
 
 @app.put("/company/users/{user_id}")
 def update_user(
@@ -522,10 +511,6 @@ def update_user(
 
     return {"message": "User updated successfully"}
 
-
-# =====================================
-# USER SESSIONS
-# =====================================
 @app.get("/company/user-sessions")
 def get_all_user_sessions(current=Depends(get_current_user)):
 
@@ -863,12 +848,6 @@ def get_employee_profile(
     is_admin = current["is_company_admin"]
     is_hr = "HR" in viewer_roles
 
-    # ---- PERMISSION CHECK ----
-    if not (is_self or is_admin or is_hr):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403, detail="Access denied")
-
     # ---- FEATURES RESOLUTION (TARGET USER) ----
     if is_company_admin:
         cur.execute("""
@@ -1052,11 +1031,6 @@ def get_attendance(date: date, current=Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
 
-    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403, detail="Access denied")
-
     cur.execute("""
         SELECT
             u.id,
@@ -1095,11 +1069,6 @@ def mark_attendance(data: MarkAttendance, current=Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
 
-    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403)
-
     cur.execute("""
         INSERT INTO attendance
             (company_id, user_id, date, status, marked_by, marked_at)
@@ -1127,11 +1096,6 @@ def mark_attendance(data: MarkAttendance, current=Depends(get_current_user)):
 def attendance_summary(date: date, current=Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
-
-    if not is_hr_or_admin(conn, current["user_id"], current["is_company_admin"]):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403)
 
     cur.execute("""
         SELECT status, COUNT(*)
@@ -1169,15 +1133,6 @@ def employee_attendance_summary(
     conn = get_db()
     cur = conn.cursor()
 
-    if not (
-        is_hr_or_admin(conn, current["user_id"], current["is_company_admin"])
-        or current["user_id"] == user_id
-    ):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403)
-
-
     cur.execute("""
         SELECT status, COUNT(*)
         FROM attendance
@@ -1213,15 +1168,6 @@ def employee_attendance_records(
     conn = get_db()
     cur = conn.cursor()
 
-    if not (
-        is_hr_or_admin(conn, current["user_id"], current["is_company_admin"])
-        or current["user_id"] == user_id
-    ):
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=403)
-
-
     cur.execute("""
         SELECT date, status, marked_by, marked_at
         FROM attendance
@@ -1244,6 +1190,330 @@ def employee_attendance_records(
         }
         for r in rows
     ]
+
+@app.post("/company/leaves")
+def apply_leave(
+    data: ApplyLeave,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Basic validation
+    if data.end_date < data.start_date:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Invalid date range")
+
+    # Calculate total days (simple version)
+    total_days = (data.end_date - data.start_date).days + 1
+
+    cur.execute("""
+        INSERT INTO leave_requests (
+            company_id,
+            user_id,
+            leave_type,
+            start_date,
+            end_date,
+            total_days,
+            reason,
+            status
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending')
+    """, (
+        current["company_id"],
+        current["user_id"],
+        data.leave_type,
+        data.start_date,
+        data.end_date,
+        total_days,
+        data.reason
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Leave request submitted"}
+
+@app.get("/company/leaves/me")
+def get_my_leaves(current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            lr.id,
+            lr.leave_type,
+            lr.start_date,
+            lr.end_date,
+            lr.total_days,
+            lr.status,
+            lr.applied_at,
+            lr.review_notes,
+            lr.reviewed_at,
+            u.name AS reviewed_by_name
+        FROM leave_requests lr
+        LEFT JOIN users u ON u.id = lr.reviewed_by
+        WHERE lr.company_id = %s
+        AND lr.user_id = %s
+        ORDER BY lr.applied_at DESC
+    """, (current["company_id"], current["user_id"]))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return [
+        {
+            "id": r[0],
+            "leave_type": r[1],
+            "start_date": r[2],
+            "end_date": r[3],
+            "total_days": r[4],
+            "status": r[5],
+            "applied_at": r[6],
+            "review_notes": r[7],
+            "reviewed_at": r[8],
+            "reviewed_by": r[9]
+        }
+        for r in rows
+    ]
+
+
+@app.put("/company/leaves/{leave_id}/cancel")
+def cancel_my_leave(
+    leave_id: int,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE leave_requests
+        SET status = 'Cancelled'
+        WHERE id = %s
+          AND company_id = %s
+          AND user_id = %s
+          AND status = 'Pending'
+    """, (
+        leave_id,
+        current["company_id"],
+        current["user_id"]
+    ))
+
+    if cur.rowcount == 0:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="Leave cannot be cancelled"
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Leave cancelled"}
+
+@app.get("/company/leaves")
+def get_all_leaves(
+    status: Optional[str] = None,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    query = """
+        SELECT
+            lr.id,
+            u.id AS user_id,
+            u.emp_id,
+            u.name,
+            lr.leave_type,
+            lr.start_date,
+            lr.end_date,
+            lr.total_days,
+            lr.reason,
+            lr.status,
+            lr.applied_at
+        FROM leave_requests lr
+        JOIN users u ON u.id = lr.user_id
+        WHERE lr.company_id = %s
+    """
+    params = [current["company_id"]]
+
+    if status:
+        query += " AND lr.status = %s"
+        params.append(status)
+
+    query += " ORDER BY lr.applied_at DESC"
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "leave_id": r[0],
+            "user_id": r[1],
+            "emp_id": r[2],
+            "name": r[3],
+            "leave_type": r[4],
+            "start_date": r[5],
+            "end_date": r[6],
+            "total_days": r[7],
+            "reason": r[8],
+            "status": r[9],
+            "applied_at": r[10]
+        }
+        for r in rows
+    ]
+
+@app.get("/company/leaves/{leave_id}")
+def get_leave_detail(
+    leave_id: int,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            lr.id,
+            u.id AS user_id,
+            u.emp_id,
+            u.name,
+            lr.leave_type,
+            lr.start_date,
+            lr.end_date,
+            lr.total_days,
+            lr.reason,
+            lr.status,
+            lr.applied_at,
+            lr.reviewed_by,
+            lr.reviewed_at,
+            lr.review_notes
+        FROM leave_requests lr
+        JOIN users u ON u.id = lr.user_id
+        WHERE lr.id = %s
+          AND lr.company_id = %s
+    """, (leave_id, current["company_id"]))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Leave request not found")
+
+    cur.close()
+    conn.close()
+
+    return {
+        "leave_id": row[0],
+        "user_id": row[1],
+        "emp_id": row[2],
+        "name": row[3],
+        "leave_type": row[4],
+        "start_date": row[5],
+        "end_date": row[6],
+        "total_days": row[7],
+        "reason": row[8],
+        "status": row[9],
+        "applied_at": row[10],
+        "reviewed_by": row[11],
+        "reviewed_at": row[12],
+        "review_notes": row[13]
+    }
+
+@app.put("/company/leaves/{leave_id}/review")
+def review_leave(
+    leave_id: int,
+    data: ReviewLeave,
+    current=Depends(get_current_user)
+):
+    if data.status not in ("Approved", "Rejected"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Fetch leave (must be Pending)
+    cur.execute("""
+        SELECT user_id, start_date, end_date, status
+        FROM leave_requests
+        WHERE id = %s
+          AND company_id = %s
+    """, (leave_id, current["company_id"]))
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Leave not found")
+
+    user_id, start_date, end_date, current_status = row
+
+    if current_status != "Pending":
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="Leave already reviewed"
+        )
+
+    # Update leave status
+    cur.execute("""
+        UPDATE leave_requests
+        SET
+            status = %s,
+            reviewed_by = %s,
+            reviewed_at = CURRENT_TIMESTAMP,
+            review_notes = %s
+        WHERE id = %s
+    """, (
+        data.status,
+        current["user_id"],
+        data.review_notes,
+        leave_id
+    ))
+
+    # ✅ If approved → mark attendance as Leave
+    if data.status == "Approved":
+        current_date = start_date
+        while current_date <= end_date:
+            cur.execute("""
+                INSERT INTO attendance (
+                    company_id,
+                    user_id,
+                    date,
+                    status,
+                    marked_by,
+                    marked_at
+                )
+                VALUES (%s, %s, %s, 'Leave', %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (company_id, user_id, date)
+                DO UPDATE SET
+                    status = 'Leave',
+                    marked_by = EXCLUDED.marked_by,
+                    marked_at = CURRENT_TIMESTAMP
+            """, (
+                current["company_id"],
+                user_id,
+                current_date,
+                current["user_id"]
+            ))
+            current_date += timedelta(days=1)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": f"Leave {data.status.lower()} successfully"}
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent

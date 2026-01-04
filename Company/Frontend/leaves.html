@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leave Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+  </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+<!-- HEADER -->
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-bold">🍃 Leave Management</h1>
+
+  <select id="statusFilter"
+    class="border rounded px-3 py-2"
+    onchange="loadLeaves()">
+    <option value="">All</option>
+    <option value="Pending">Pending</option>
+    <option value="Approved">Approved</option>
+    <option value="Rejected">Rejected</option>
+  </select>
+</div>
+
+<!-- TABLE -->
+<div class="bg-white rounded shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-200 text-left">
+      <tr>
+        <th class="p-3">Employee</th>
+        <th class="p-3">Type</th>
+        <th class="p-3">Dates</th>
+        <th class="p-3">Days</th>
+        <th class="p-3">Status</th>
+        <th class="p-3">Action</th>
+      </tr>
+    </thead>
+    <tbody id="leaveTable"></tbody>
+  </table>
+</div>
+
+<!-- MODAL -->
+<div id="modal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+
+  <div class="bg-white w-full max-w-lg rounded p-6">
+    <h2 class="text-lg font-semibold mb-4">Leave Request</h2>
+
+    <div id="modalContent" class="space-y-2 text-sm"></div>
+
+    <textarea id="reviewNotes"
+      class="w-full border rounded p-2 mt-4"
+      placeholder="Review notes (optional)"></textarea>
+
+    <div class="flex justify-end gap-3 mt-4">
+      <button onclick="closeModal()"
+        class="px-4 py-2 border rounded">
+        Close
+      </button>
+
+      <button onclick="reviewLeave('Rejected')"
+        class="px-4 py-2 bg-red-600 text-white rounded">
+        Reject
+      </button>
+
+      <button onclick="reviewLeave('Approved')"
+        class="px-4 py-2 bg-green-600 text-white rounded">
+        Approve
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentLeaveId = null;
+
+async function loadLeaves() {
+  const status = document.getElementById("statusFilter").value;
+  const url = status
+    ? `${API}/company/leaves?status=${status}`
+    : `${API}/company/leaves`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  const tbody = document.getElementById("leaveTable");
+  tbody.innerHTML = "";
+
+  data.forEach(l => {
+    tbody.innerHTML += `
+      <tr class="border-t">
+        <td class="p-3">${l.name} (${l.emp_id})</td>
+        <td class="p-3">${l.leave_type}</td>
+        <td class="p-3">${l.start_date} → ${l.end_date}</td>
+        <td class="p-3">${l.total_days}</td>
+        <td class="p-3">
+          <span class="px-2 py-1 rounded text-xs
+            ${l.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+              l.status === "Approved" ? "bg-green-100 text-green-800" :
+              "bg-red-100 text-red-800"}">
+            ${l.status}
+          </span>
+        </td>
+        <td class="p-3">
+          <button
+            onclick="openLeave(${l.leave_id})"
+            class="text-blue-600 underline">
+            View
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+async function openLeave(id) {
+  currentLeaveId = id;
+
+  const res = await fetch(`${API}/company/leaves/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const l = await res.json();
+
+  let reviewBlock = "";
+
+  if (l.status !== "Pending") {
+    reviewBlock = `
+      <div class="mt-3 border-t pt-3 text-sm text-gray-700">
+        <p><b>Reviewed At:</b> ${l.reviewed_at || "-"}</p>
+        <p><b>Review Notes:</b> ${l.review_notes || "-"}</p>
+      </div>
+    `;
+  }
+
+  document.getElementById("modalContent").innerHTML = `
+    <p><b>Employee:</b> ${l.name} (${l.emp_id})</p>
+    <p><b>Leave Type:</b> ${l.leave_type}</p>
+    <p><b>Dates:</b> ${l.start_date} → ${l.end_date}</p>
+    <p><b>Total Days:</b> ${l.total_days}</p>
+    <p><b>Reason:</b> ${l.reason || "-"}</p>
+    <p><b>Status:</b> ${l.status}</p>
+    ${reviewBlock}
+  `;
+
+  const isPending = l.status === "Pending";
+
+  const approveBtn = document.querySelector("button[onclick=\"reviewLeave('Approved')\"]");
+  const rejectBtn = document.querySelector("button[onclick=\"reviewLeave('Rejected')\"]");
+
+  approveBtn.disabled = !isPending;
+  rejectBtn.disabled = !isPending;
+
+  approveBtn.classList.toggle("opacity-50", !isPending);
+  rejectBtn.classList.toggle("opacity-50", !isPending);
+
+  document.getElementById("modal").classList.remove("hidden");
+  document.getElementById("modal").classList.add("flex");
+}
+
+
+function closeModal() {
+  document.getElementById("modal").classList.add("hidden");
+  document.getElementById("reviewNotes").value = "";
+  currentLeaveId = null;
+}
+
+async function reviewLeave(status) {
+  if (!currentLeaveId) return;
+
+  const notes = document.getElementById("reviewNotes").value;
+
+  await fetch(`${API}/company/leaves/${currentLeaveId}/review`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      status: status,
+      review_notes: notes
+    })
+  });
+
+  closeModal();
+  loadLeaves();
+}
+
+// Initial load
+loadLeaves();
+</script>
+
+</body>
+</html>
