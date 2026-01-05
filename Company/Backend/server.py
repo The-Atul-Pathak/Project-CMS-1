@@ -1263,7 +1263,7 @@ def get_my_leaves(current=Depends(get_current_user)):
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    
+
     return [
         {
             "id": r[0],

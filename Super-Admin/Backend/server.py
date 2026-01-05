@@ -698,26 +698,42 @@ def update_plan(
     return {"message": "Plan updated successfully"}
 
 @app.delete("/plans/{plan_id}")
-def delete_plan(
-    plan_id: int,
-    current=Depends(get_current_admin)
-):
+def delete_plan(plan_id: int, current=Depends(get_current_admin)):
     if current["role"] != "SUPER_ADMIN":
         raise HTTPException(status_code=403)
 
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("DELETE FROM plans WHERE id = %s", (plan_id,))
+    # 1. Remove subscriptions using this plan
+    cur.execute("""
+        DELETE FROM company_subscriptions
+        WHERE plan_id = %s
+    """, (plan_id,))
+
+    # 2. Delete the plan
+    cur.execute("""
+        DELETE FROM plans
+        WHERE id = %s
+    """, (plan_id,))
 
     if cur.rowcount == 0:
+        conn.rollback()
         raise HTTPException(status_code=404, detail="Plan not found")
 
     conn.commit()
     cur.close()
     conn.close()
 
-    return {"message": "Plan deleted successfully"}
+    write_audit_log(
+        entity_type="PLAN",
+        entity_id=plan_id,
+        action="PLAN_DELETED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
+
+    return {"message": "Plan deleted and detached from all companies"}
+
 
 @app.put("/features/{feature_id}")
 def update_feature(
@@ -774,26 +790,42 @@ def update_feature(
     return {"message": "Feature updated successfully"}
 
 @app.delete("/features/{feature_id}")
-def delete_feature(
-    feature_id: int,
-    current=Depends(get_current_admin)
-):
+def delete_feature(feature_id: int, current=Depends(get_current_admin)):
     if current["role"] != "SUPER_ADMIN":
         raise HTTPException(status_code=403)
 
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("DELETE FROM features WHERE id = %s", (feature_id,))
+    # 1. Remove feature access from companies
+    cur.execute("""
+        DELETE FROM company_features
+        WHERE feature_id = %s
+    """, (feature_id,))
+
+    # 2. Delete the feature
+    cur.execute("""
+        DELETE FROM features
+        WHERE id = %s
+    """, (feature_id,))
 
     if cur.rowcount == 0:
+        conn.rollback()
         raise HTTPException(status_code=404, detail="Feature not found")
 
     conn.commit()
     cur.close()
     conn.close()
 
-    return {"message": "Feature deleted successfully"}
+    write_audit_log(
+        entity_type="FEATURE",
+        entity_id=feature_id,
+        action="FEATURE_DELETED",
+        performed_by=f"ADMIN:{current['id']}"
+    )
+
+    return {"message": "Feature deleted and removed from all companies"}
+
 
 @app.get("/companies/{company_id}/subscription")
 def get_company_subscription(company_id: int, current=Depends(get_current_admin)):
@@ -958,3 +990,55 @@ def create_company_admin(
     conn.close()
 
     return {"message": "Company admin created"}
+
+@app.get("/plans/{plan_id}/usage")
+def get_plan_usage(plan_id: int, current=Depends(get_current_admin)):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT c.id, c.company_name
+        FROM company_subscriptions cs
+        JOIN companies c ON c.id = cs.company_id
+        WHERE cs.plan_id = %s AND cs.status = 'active'
+    """, (plan_id,))
+
+    companies = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return {
+        "in_use": len(companies) > 0,
+        "companies": [
+            {"id": c[0], "name": c[1]} for c in companies
+        ]
+    }
+
+@app.get("/features/{feature_id}/usage")
+def get_feature_usage(feature_id: int, current=Depends(get_current_admin)):
+    if current["role"] != "SUPER_ADMIN":
+        raise HTTPException(status_code=403)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT c.id, c.company_name
+        FROM company_features cf
+        JOIN companies c ON c.id = cf.company_id
+        WHERE cf.feature_id = %s AND cf.enabled = TRUE
+    """, (feature_id,))
+
+    companies = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return {
+        "in_use": len(companies) > 0,
+        "companies": [
+            {"id": c[0], "name": c[1]} for c in companies
+        ]
+    }
