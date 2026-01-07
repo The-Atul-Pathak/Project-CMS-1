@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta, date
 from jose import jwt
 from passlib.context import CryptContext
@@ -134,6 +134,16 @@ class ApplyLeave(BaseModel):
 class ReviewLeave(BaseModel):
     status: str   # Approved | Rejected
     review_notes: Optional[str] = None
+class TeamCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    manager_id: Optional[int] = None
+    member_ids: List[int] = []
+class TeamUpdate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    manager_id: Optional[int] = None
+    member_ids: List[int] = []
 
 # =====================================
 # AUTH DEPENDENCY
@@ -1280,7 +1290,6 @@ def get_my_leaves(current=Depends(get_current_user)):
         for r in rows
     ]
 
-
 @app.put("/company/leaves/{leave_id}/cancel")
 def cancel_my_leave(
     leave_id: int,
@@ -1514,6 +1523,197 @@ def review_leave(
     conn.close()
 
     return {"message": f"Leave {data.status.lower()} successfully"}
+
+@app.get("/company/teams")
+def get_teams(current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT 
+            t.id,
+            t.name,
+            t.description,
+            t.manager_id,
+            u.name AS manager_name,
+            t.status,
+            COUNT(tm.user_id) AS member_count
+        FROM teams t
+        LEFT JOIN users u ON u.id = t.manager_id
+        LEFT JOIN team_members tm ON tm.team_id = t.id
+        WHERE t.company_id = %s
+        GROUP BY t.id, u.name
+        ORDER BY t.created_at DESC
+    """, (current["company_id"],))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": r[0],
+            "name": r[1],
+            "description": r[2],
+            "manager_id": r[3],
+            "manager_name": r[4],
+            "status": r[5],
+            "member_count": r[6]
+        }
+        for r in rows
+    ]
+
+
+@app.post("/company/teams")
+def create_team(
+    data: TeamCreate,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            INSERT INTO teams (company_id, name, description, manager_id)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """, (
+            current["company_id"],
+            data.name,
+            data.description,
+            data.manager_id
+        ))
+
+        team_id = cur.fetchone()[0]
+
+        for user_id in data.member_ids:
+            cur.execute("""
+                INSERT INTO team_members (team_id, user_id)
+                VALUES (%s, %s)
+                ON CONFLICT DO NOTHING
+            """, (team_id, user_id))
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        conn.close()
+
+    return {"message": "Team created", "team_id": team_id}
+
+@app.get("/company/teams/{team_id}")
+def get_team(
+    team_id: int,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, name, description, manager_id, status
+        FROM teams
+        WHERE id = %s AND company_id = %s
+    """, (team_id, current["company_id"]))
+
+    team = cur.fetchone()
+
+    if not team:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    cur.execute("""
+        SELECT u.id, u.name
+        FROM team_members tm
+        JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = %s
+    """, (team_id,))
+
+    members = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "id": team[0],
+        "name": team[1],
+        "description": team[2],
+        "manager_id": team[3],
+        "status": team[4],
+        "members": [
+            {"user_id": m[0], "name": m[1]} for m in members
+        ]
+    }
+
+@app.put("/company/teams/{team_id}")
+def update_team(
+    team_id: int,
+    data: TeamUpdate,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE teams
+        SET name = %s,
+            description = %s,
+            manager_id = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s AND company_id = %s
+    """, (
+        data.name,
+        data.description,
+        data.manager_id,
+        team_id,
+        current["company_id"]
+    ))
+
+    cur.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
+
+    for user_id in data.member_ids:
+        cur.execute("""
+            INSERT INTO team_members (team_id, user_id)
+            VALUES (%s, %s)
+        """, (team_id, user_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Team updated"}
+
+
+@app.delete("/company/teams/{team_id}")
+def archive_team(
+    team_id: int,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE teams
+        SET status = 'Archived',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s AND company_id = %s
+    """, (team_id, current["company_id"]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Team archived"}
+
+
+
+
+
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent

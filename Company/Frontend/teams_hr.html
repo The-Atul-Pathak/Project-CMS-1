@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Teams (HR)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+
+    const headers = {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    };
+  </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+<!-- HEADER -->
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-bold">Teams (HR)</h1>
+  <button onclick="openCreateModal()"
+          class="bg-blue-600 text-white px-4 py-2 rounded">
+    + Create Team
+  </button>
+</div>
+
+<!-- TEAMS TABLE -->
+<div class="bg-white rounded shadow overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-200">
+      <tr>
+        <th class="p-3 text-left">Team Name</th>
+        <th class="p-3 text-left">Manager</th>
+        <th class="p-3 text-left">Members</th>
+        <th class="p-3 text-left">Status</th>
+        <th class="p-3 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="teamsTable"></tbody>
+  </table>
+</div>
+
+<!-- CREATE / EDIT MODAL -->
+<div id="teamModal"
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+  <div class="bg-white w-3/4 max-w-4xl rounded shadow p-6 relative overflow-y-auto max-h-[90vh]">
+
+    <button onclick="closeModal()"
+            class="absolute top-3 right-3 text-gray-500">✕</button>
+
+    <h2 id="modalTitle" class="text-xl font-bold mb-4">Create Team</h2>
+
+    <input type="hidden" id="teamId" />
+
+    <!-- TEAM INFO -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium">Team Name</label>
+      <input id="teamName"
+             class="border rounded w-full px-3 py-2 mt-1" />
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-sm font-medium">Description</label>
+      <textarea id="teamDesc"
+                class="border rounded w-full px-3 py-2 mt-1"></textarea>
+    </div>
+
+    <!-- MANAGER -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">Team Manager</label>
+      <select id="managerSelect"
+              class="border rounded w-full px-3 py-2">
+        <option value="">-- Select Manager --</option>
+      </select>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-2">Team Members</label>
+      <div id="membersList"
+           class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded p-2">
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="flex justify-end gap-3">
+      <button onclick="closeModal()"
+              class="px-4 py-2 border rounded">
+        Cancel
+      </button>
+      <button onclick="saveTeam()"
+              class="px-4 py-2 bg-blue-600 text-white rounded">
+        Save Team
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let allUsers = [];
+
+  async function loadTeams() {
+    const r = await fetch(`${API}/company/teams`, { headers });
+    const teams = await r.json();
+
+    teamsTable.innerHTML = "";
+
+    teams.forEach(t => {
+      teamsTable.innerHTML += `
+        <tr class="border-t hover:bg-gray-50">
+          <td class="p-3">${t.name}</td>
+          <td class="p-3">${t.manager_name || "-"}</td>
+          <td class="p-3">${t.member_count}</td>
+          <td class="p-3">${t.status}</td>
+          <td class="p-3 space-x-2">
+            <button onclick="editTeam(${t.id})"
+                    class="text-blue-600">Edit</button>
+            <button onclick="archiveTeam(${t.id})"
+                    class="text-red-600">Archive</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  async function loadUsers() {
+    const r = await fetch(`${API}/company/users`, { headers });
+    allUsers = await r.json();
+
+    managerSelect.innerHTML = `<option value="">-- Select Manager --</option>`;
+    membersList.innerHTML = "";
+
+    allUsers.forEach(u => {
+      managerSelect.innerHTML += `
+        <option value="${u.id}">${u.name}</option>
+      `;
+
+      membersList.innerHTML += `
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" value="${u.id}" />
+          ${u.name}
+        </label>
+      `;
+    });
+  }
+
+  function openCreateModal() {
+    modalTitle.textContent = "Create Team";
+    teamId.value = "";
+    teamName.value = "";
+    teamDesc.value = "";
+    managerSelect.value = "";
+
+    document.querySelectorAll("#membersList input")
+      .forEach(cb => cb.checked = false);
+
+    teamModal.classList.remove("hidden");
+    teamModal.classList.add("flex");
+  }
+
+  async function editTeam(id) {
+    const r = await fetch(`${API}/company/teams/${id}`, { headers });
+    const t = await r.json();
+
+    modalTitle.textContent = "Edit Team";
+    teamId.value = t.id;
+    teamName.value = t.name;
+    teamDesc.value = t.description || "";
+    managerSelect.value = t.manager_id || "";
+
+    document.querySelectorAll("#membersList input")
+      .forEach(cb => {
+        cb.checked = t.members.some(m => m.user_id == cb.value);
+      });
+
+    teamModal.classList.remove("hidden");
+    teamModal.classList.add("flex");
+  }
+
+  async function saveTeam() {
+    const member_ids = [...document.querySelectorAll("#membersList input:checked")]
+      .map(cb => parseInt(cb.value));
+
+    const payload = {
+      name: teamName.value,
+      description: teamDesc.value,
+      manager_id: managerSelect.value || null,
+      member_ids
+    };
+
+    const id = teamId.value;
+    const url = id
+      ? `${API}/company/teams/${id}`
+      : `${API}/company/teams`;
+
+    await fetch(url, {
+      method: id ? "PUT" : "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+
+    closeModal();
+    loadTeams();
+  }
+
+  async function archiveTeam(id) {
+    if (!confirm("Archive this team?")) return;
+
+    await fetch(`${API}/company/teams/${id}`, {
+      method: "DELETE",
+      headers
+    });
+
+    loadTeams();
+  }
+
+  function closeModal() {
+    teamModal.classList.add("hidden");
+  }
+
+  loadUsers();
+  loadTeams();
+</script>
+
+</body>
+</html>
