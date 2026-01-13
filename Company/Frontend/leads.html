@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leads Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+  </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+<!-- HEADER -->
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-bold">📇 Leads</h1>
+
+  <div class="flex gap-2">
+    <button onclick="switchTab('all')"
+      class="px-4 py-2 border rounded bg-white">
+      All Leads
+    </button>
+    <button onclick="switchTab('today')"
+      class="px-4 py-2 border rounded bg-white">
+      Today’s Follow-ups
+    </button>
+    <button onclick="openCreateLead()"
+        class="px-4 py-2 bg-blue-600 text-white rounded">
+        + Add Lead
+    </button>
+
+  </div>
+</div>
+
+<!-- ALL LEADS TABLE -->
+<div id="allLeads" class="bg-white rounded shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-200 text-left">
+      <tr>
+        <th class="p-3">Client</th>
+        <th class="p-3">Status</th>
+        <th class="p-3">Assigned To</th>
+        <th class="p-3">Next Follow-up</th>
+        <th class="p-3">Last Interaction</th>
+        <th class="p-3">Action</th>
+      </tr>
+    </thead>
+    <tbody id="leadsTable"></tbody>
+  </table>
+</div>
+
+<!-- TODAY FOLLOW-UPS -->
+<div id="todayLeads"
+  class="bg-white rounded shadow overflow-x-auto hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-200 text-left">
+      <tr>
+        <th class="p-3">Client</th>
+        <th class="p-3">Status</th>
+        <th class="p-3">Follow-up Date</th>
+        <th class="p-3">Action</th>
+      </tr>
+    </thead>
+    <tbody id="todayTable"></tbody>
+  </table>
+</div>
+
+<!-- MODAL -->
+<div id="modal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+
+  <div class="bg-white w-full max-w-lg rounded p-6">
+    <h2 class="text-lg font-semibold mb-4">Lead Details</h2>
+
+    <div id="modalContent" class="space-y-2 text-sm"></div>
+
+    <hr class="my-4">
+
+    <h3 class="font-medium text-sm mb-2">Log Interaction</h3>
+
+    <select id="interactionType"
+      class="w-full border rounded p-2 mb-2">
+      <option>Call</option>
+      <option>Meeting</option>
+      <option>Email</option>
+      <option>WhatsApp</option>
+      <option>Other</option>
+    </select>
+
+    <textarea id="interactionDesc"
+      class="w-full border rounded p-2"
+      placeholder="What was discussed?"></textarea>
+
+    <div class="flex justify-end gap-3 mt-4">
+      <button onclick="closeModal()"
+        class="px-4 py-2 border rounded">
+        Close
+      </button>
+
+      <button onclick="saveInteraction()"
+        class="px-4 py-2 bg-blue-600 text-white rounded">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE LEAD MODAL -->
+<div id="createLeadModal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+
+  <div class="bg-white w-full max-w-lg rounded p-6">
+    <h2 class="text-lg font-semibold mb-4">Create Lead</h2>
+
+    <div class="space-y-3 text-sm">
+      <input id="cl_name"
+        class="w-full border rounded p-2"
+        placeholder="Client Name" />
+
+      <input id="cl_email"
+        class="w-full border rounded p-2"
+        placeholder="Email (optional)" />
+
+      <input id="cl_phone"
+        class="w-full border rounded p-2"
+        placeholder="Phone (optional)" />
+
+      <input id="cl_source"
+        class="w-full border rounded p-2"
+        placeholder="Source (Website, Call, Referral)" />
+
+        <select id="cl_assigned"
+        class="w-full border rounded p-2">
+        <option value="">Assign Sales User</option>
+        </select>
+
+
+      <input id="cl_followup"
+        type="date"
+        class="w-full border rounded p-2" />
+
+      <textarea id="cl_notes"
+        class="w-full border rounded p-2"
+        placeholder="Notes (optional)"></textarea>
+    </div>
+
+    <div class="flex justify-end gap-3 mt-4">
+      <button onclick="closeCreateLead()"
+        class="px-4 py-2 border rounded">
+        Cancel
+      </button>
+
+      <button onclick="createLead()"
+        class="px-4 py-2 bg-blue-600 text-white rounded">
+        Save Lead
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT LEAD MODAL -->
+<div id="editLeadModal"
+  class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+
+  <div class="bg-white w-full max-w-lg rounded p-6">
+    <h2 class="text-lg font-semibold mb-4">Edit Lead</h2>
+
+    <div class="space-y-3 text-sm">
+      <select id="el_status"
+        class="w-full border rounded p-2">
+        <option>New</option>
+        <option>Contacted</option>
+        <option>Follow-up</option>
+        <option>Negotiation</option>
+        <option>Won</option>
+        <option>Lost</option>
+      </select>
+
+      <input id="el_followup"
+        type="date"
+        class="w-full border rounded p-2" />
+
+        <select id="el_assigned"
+        class="w-full border rounded p-2">
+        <option value="">Reassign Sales User</option>
+        </select>
+
+
+      <textarea id="el_notes"
+        class="w-full border rounded p-2"
+        placeholder="Notes"></textarea>
+    </div>
+
+    <div class="flex justify-end gap-3 mt-4">
+      <button onclick="closeEditLead()"
+        class="px-4 py-2 border rounded">
+        Cancel
+      </button>
+
+      <button onclick="updateLead()"
+        class="px-4 py-2 bg-green-600 text-white rounded">
+        Update
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+let currentLeadId = null;
+let leadsCache = {};
+
+
+function switchTab(tab) {
+  document.getElementById("allLeads").classList.toggle("hidden", tab !== "all");
+  document.getElementById("todayLeads").classList.toggle("hidden", tab !== "today");
+  if (tab === "today") loadToday();
+}
+
+async function loadLeads() {
+  const res = await fetch(`${API}/sales/leads`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  const tbody = document.getElementById("leadsTable");
+  tbody.innerHTML = "";
+
+  data.forEach(l => {
+  leadsCache[l[0]] = {
+    id: l[0],
+    client_name: l[1],
+    status: l[4],
+    follow_up: l[5],
+    last_interaction: l[6],
+    assigned_name: l[7]
+  };
+    tbody.innerHTML += `
+      <tr class="border-t">
+        <td class="p-3">${l[1]}</td>
+        <td class="p-3">${l[4]}</td>
+        <td class="p-3">${l[7]}</td>
+        <td class="p-3">${l[5] || "-"}</td>
+        <td class="p-3">${l[6] || "-"}</td>
+        <td class="p-3">
+          <button onclick="openLead(${l[0]})"
+            class="text-blue-600 underline">
+            Log Interaction
+          </button>
+            <button onclick="openEditLead(${l[0]})"
+            class="text-blue-600 underline">
+            Edit
+            </button>
+
+        </td>
+      </tr>
+    `;
+  });
+}
+
+async function loadToday() {
+  const res = await fetch(`${API}/sales/leads/today`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  const tbody = document.getElementById("todayTable");
+  tbody.innerHTML = "";
+
+  data.forEach(l => {
+    tbody.innerHTML += `
+      <tr class="border-t">
+        <td class="p-3">${l[1]}</td>
+        <td class="p-3">${l[2]}</td>
+        <td class="p-3">${l[3]}</td>
+        <td class="p-3">
+          <button onclick="openLead(${l[0]})"
+            class="text-blue-600 underline">
+            Log Interaction
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+async function openLead(id) {
+  currentLeadId = id;
+
+  const res = await fetch(`${API}/sales/leads/${id}/interactions`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const interactions = await res.json();
+
+  let history = interactions.map(i =>
+    `<p>• <b>${i[0]}</b> – ${i[1]}</p>`
+  ).join("");
+
+  document.getElementById("modalContent").innerHTML = `
+    <p><b>Interaction History:</b></p>
+    ${history || "<p>No interactions yet.</p>"}
+  `;
+
+  document.getElementById("modal").classList.remove("hidden");
+  document.getElementById("modal").classList.add("flex");
+}
+
+async function saveInteraction() {
+  const type = document.getElementById("interactionType").value;
+  const desc = document.getElementById("interactionDesc").value;
+
+  if (!desc) return alert("Description required");
+
+  await fetch(`${API}/sales/leads/${currentLeadId}/interactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      interaction_type: type,
+      description: desc
+    })
+  });
+
+  closeModal();
+  loadLeads();
+}
+
+function closeModal() {
+  document.getElementById("modal").classList.add("hidden");
+  document.getElementById("interactionDesc").value = "";
+  currentLeadId = null;
+}
+
+function openCreateLead() {
+  loadUsers();
+  document.getElementById("createLeadModal").classList.remove("hidden");
+  document.getElementById("createLeadModal").classList.add("flex");
+}
+
+function closeCreateLead() {
+  document.getElementById("createLeadModal").classList.add("hidden");
+}
+
+async function createLead() {
+  const data = {
+    client_name: document.getElementById("cl_name").value,
+    contact_email: document.getElementById("cl_email").value,
+    contact_phone: document.getElementById("cl_phone").value,
+    source: document.getElementById("cl_source").value,
+    assigned_user_id: parseInt(document.getElementById("cl_assigned").value),
+    next_follow_up_date: document.getElementById("cl_followup").value || null,
+    notes: document.getElementById("cl_notes").value
+  };
+
+  if (!data.client_name || !data.assigned_user_id) {
+    return alert("Client name and Assigned User ID are required");
+  }
+
+  await fetch(`${API}/sales/leads`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  closeCreateLead();
+  loadLeads();
+}
+
+let editLeadId = null;
+
+function openEditLead(id) {
+  editLeadId = id;
+  loadUsers();
+
+  const lead = leadsCache[id];
+  if (!lead) return alert("Lead not found");
+
+  document.getElementById("el_status").value = lead.status || "New";
+  document.getElementById("el_followup").value = lead.follow_up || "";
+  document.getElementById("el_notes").value = lead.notes || "";
+
+  document.getElementById("editLeadModal").classList.remove("hidden");
+  document.getElementById("editLeadModal").classList.add("flex");
+}
+
+
+function closeEditLead() {
+  document.getElementById("editLeadModal").classList.add("hidden");
+  editLeadId = null;
+}
+
+async function updateLead() {
+  if (!editLeadId) return;
+
+  const payload = {
+    status: document.getElementById("el_status").value,
+    next_follow_up_date: document.getElementById("el_followup").value || null,
+    assigned_user_id: document.getElementById("el_assigned").value
+      ? parseInt(document.getElementById("el_assigned").value)
+      : null,
+    notes: document.getElementById("el_notes").value || null
+  };
+
+  await fetch(`${API}/sales/leads/${editLeadId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  closeEditLead();
+  loadLeads();
+}
+
+async function loadUsers() {
+  const res = await fetch(`${API}/company/users`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const users = await res.json();
+
+  const createSelect = document.getElementById("cl_assigned");
+  const editSelect = document.getElementById("el_assigned");
+
+  createSelect.innerHTML = `<option value="">Assign Sales User</option>`;
+  editSelect.innerHTML = `<option value="">Reassign Sales User</option>`;
+
+  users.forEach(u => {
+    if (u.status !== "active") return;
+
+    const opt1 = document.createElement("option");
+    opt1.value = u.id;
+    opt1.textContent = `${u.name} (${u.emp_id})`;
+    createSelect.appendChild(opt1);
+
+    const opt2 = opt1.cloneNode(true);
+    editSelect.appendChild(opt2);
+  });
+
+  // 🔹 Auto-select assigned user for edit modal
+  if (editLeadId && leadsCache[editLeadId]) {
+    const assignedName = leadsCache[editLeadId].assigned_name;
+    Array.from(editSelect.options).forEach(o => {
+      if (o.text.includes(assignedName)) {
+        editSelect.value = o.value;
+      }
+    });
+  }
+}
+
+
+loadLeads();
+</script>
+
+</body>
+</html>

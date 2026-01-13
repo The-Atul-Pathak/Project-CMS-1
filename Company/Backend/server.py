@@ -144,7 +144,23 @@ class TeamUpdate(BaseModel):
     description: Optional[str] = None
     manager_id: Optional[int] = None
     member_ids: List[int] = []
-
+class LeadCreate(BaseModel):
+    client_name: str
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    source: Optional[str] = None
+    assigned_user_id: int
+    next_follow_up_date: Optional[date] = None
+    notes: Optional[str] = None
+class LeadUpdate(BaseModel):
+    status: Optional[str] = None
+    assigned_user_id: Optional[int] = None
+    next_follow_up_date: Optional[date] = None
+    notes: Optional[str] = None
+class LeadInteractionCreate(BaseModel):
+    interaction_type: str
+    description: str
+    interaction_at: Optional[datetime] = None
 # =====================================
 # AUTH DEPENDENCY
 # =====================================
@@ -1564,7 +1580,6 @@ def get_teams(current=Depends(get_current_user)):
         for r in rows
     ]
 
-
 @app.post("/company/teams")
 def create_team(
     data: TeamCreate,
@@ -1688,7 +1703,6 @@ def update_team(
 
     return {"message": "Team updated"}
 
-
 @app.delete("/company/teams/{team_id}")
 def archive_team(
     team_id: int,
@@ -1710,11 +1724,204 @@ def archive_team(
 
     return {"message": "Team archived"}
 
+@app.post("/sales/leads")
+def create_lead(
+    data: LeadCreate,
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
 
+    cur.execute("""
+        INSERT INTO leads (
+            client_name,
+            contact_email,
+            contact_phone,
+            source,
+            notes,
+            assigned_employee_id,
+            created_by_user_id,
+            next_follow_up_date
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        RETURNING id
+    """, (
+        data.client_name,
+        data.contact_email,
+        data.contact_phone,
+        data.source,
+        data.notes,
+        data.assigned_user_id,
+        user["user_id"],
+        data.next_follow_up_date
+    ))
 
+    lead_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
 
+    return {"lead_id": lead_id}
 
+@app.get("/sales/leads")
+def get_all_leads(user=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
 
+    cur.execute("""
+        SELECT
+            l.id,
+            l.client_name,
+            l.contact_email,
+            l.contact_phone,
+            l.status,
+            l.next_follow_up_date,
+            l.last_interaction_at,
+            u.name AS assigned_user
+        FROM leads l
+        JOIN users u ON u.id = l.assigned_employee_id
+        WHERE u.company_id = %s
+        ORDER BY l.created_at DESC
+    """, (user["company_id"],))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return rows
+
+@app.get("/sales/leads/today")
+def todays_followups(user=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            client_name,
+            status,
+            next_follow_up_date,
+            last_interaction_at
+        FROM leads
+        WHERE assigned_employee_id = %s
+          AND next_follow_up_date = CURRENT_DATE
+    """, (user["user_id"],))
+
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return data
+
+@app.put("/sales/leads/{lead_id}")
+def update_lead(
+    lead_id: int,
+    data: LeadUpdate,
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    fields = []
+    values = []
+
+    if data.status:
+        fields.append("status = %s")
+        values.append(data.status)
+
+    if data.assigned_user_id:
+        fields.append("assigned_employee_id = %s")
+        values.append(data.assigned_user_id)
+
+    if data.next_follow_up_date:
+        fields.append("next_follow_up_date = %s")
+        values.append(data.next_follow_up_date)
+
+    if data.notes:
+        fields.append("notes = %s")
+        values.append(data.notes)
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    values.append(lead_id)
+
+    query = f"""
+        UPDATE leads
+        SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """
+
+    cur.execute(query, tuple(values))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "updated"}
+
+@app.post("/sales/leads/{lead_id}/interactions")
+def log_interaction(
+    lead_id: int,
+    data: LeadInteractionCreate,
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO lead_interactions (
+            lead_id,
+            interaction_type,
+            description,
+            logged_by_employee_id,
+            interaction_at
+        )
+        VALUES (%s,%s,%s,%s,%s)
+    """, (
+        lead_id,
+        data.interaction_type,
+        data.description,
+        user["user_id"],
+        data.interaction_at or datetime.utcnow()
+    ))
+
+    cur.execute("""
+        UPDATE leads
+        SET last_interaction_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (lead_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "interaction logged"}
+
+@app.get("/sales/leads/{lead_id}/interactions")
+def get_lead_interactions(
+    lead_id: int,
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            interaction_type,
+            description,
+            interaction_at,
+            u.name
+        FROM lead_interactions li
+        JOIN users u ON u.id = li.logged_by_employee_id
+        WHERE li.lead_id = %s
+        ORDER BY interaction_at DESC
+    """, (lead_id,))
+
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return data
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "Frontend"
