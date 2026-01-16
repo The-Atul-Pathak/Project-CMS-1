@@ -20,44 +20,79 @@
 
 <body class="bg-gray-100 min-h-screen p-6">
 
-<!-- HEADER -->
-<div class="flex justify-between items-center mb-6">
-  <h1 class="text-2xl font-bold">Teams (HR)</h1>
-  <button onclick="openCreateModal()"
-          class="bg-blue-600 text-white px-4 py-2 rounded">
-    + Create Team
-  </button>
+<div class="mb-6">
+  <h1 class="text-2xl font-bold mb-4">Teams (HR)</h1>
+
+  <div class="flex gap-4 border-b">
+    <button id="teamsTabBtn"
+            onclick="showTab('teams')"
+            class="pb-2 border-b-2 border-blue-600 font-medium">
+      Teams
+    </button>
+    <button id="projectsTabBtn"
+            onclick="showTab('projects')"
+            class="pb-2 text-gray-500">
+      Projects
+    </button>
+  </div>
 </div>
 
-<!-- TEAMS TABLE -->
-<div class="bg-white rounded shadow overflow-x-auto">
-  <table class="min-w-full text-sm">
-    <thead class="bg-gray-200">
-      <tr>
-        <th class="p-3 text-left">Team Name</th>
-        <th class="p-3 text-left">Manager</th>
-        <th class="p-3 text-left">Members</th>
-        <th class="p-3 text-left">Status</th>
-        <th class="p-3 text-left">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="teamsTable"></tbody>
-  </table>
+<div id="teamsTab">
+
+  <div class="flex justify-end mb-4">
+    <button onclick="openCreateModal()"
+            class="bg-blue-600 text-white px-4 py-2 rounded">
+      + Create Team
+    </button>
+  </div>
+
+  <div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="p-3 text-left">Team Name</th>
+          <th class="p-3 text-left">Manager</th>
+          <th class="p-3 text-left">Members</th>
+          <th class="p-3 text-left">Status</th>
+          <th class="p-3 text-left">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="teamsTable"></tbody>
+    </table>
+  </div>
+
 </div>
 
-<!-- CREATE / EDIT MODAL -->
+<div id="projectsTab" class="hidden">
+
+  <div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="p-3 text-left">Project</th>
+          <th class="p-3 text-left">Client</th>
+          <th class="p-3 text-left">Sales Owner</th>
+          <th class="p-3 text-left">Notes</th>
+          <th class="p-3 text-left">Assign Team</th>
+        </tr>
+      </thead>
+      <tbody id="projectsTable"></tbody>
+    </table>
+  </div>
+
+</div>
+
 <div id="teamModal"
-     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-40">
   <div class="bg-white w-3/4 max-w-4xl rounded shadow p-6 relative overflow-y-auto max-h-[90vh]">
 
-    <button onclick="closeModal()"
+    <button onclick="closeModal('teamModal')"
             class="absolute top-3 right-3 text-gray-500">✕</button>
 
     <h2 id="modalTitle" class="text-xl font-bold mb-4">Create Team</h2>
 
     <input type="hidden" id="teamId" />
 
-    <!-- TEAM INFO -->
     <div class="mb-4">
       <label class="block text-sm font-medium">Team Name</label>
       <input id="teamName"
@@ -70,7 +105,6 @@
                 class="border rounded w-full px-3 py-2 mt-1"></textarea>
     </div>
 
-    <!-- MANAGER -->
     <div class="mb-4">
       <label class="block text-sm font-medium mb-1">Team Manager</label>
       <select id="managerSelect"
@@ -79,7 +113,6 @@
       </select>
     </div>
 
-    <!-- MEMBERS -->
     <div class="mb-4">
       <label class="block text-sm font-medium mb-2">Team Members</label>
       <div id="membersList"
@@ -87,9 +120,8 @@
       </div>
     </div>
 
-    <!-- ACTIONS -->
     <div class="flex justify-end gap-3">
-      <button onclick="closeModal()"
+      <button onclick="closeModal('teamModal')"
               class="px-4 py-2 border rounded">
         Cancel
       </button>
@@ -101,9 +133,75 @@
   </div>
 </div>
 
+<div id="viewTeamModal"
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white w-3/4 max-w-5xl rounded shadow p-6 relative overflow-y-auto max-h-[90vh]">
+
+    <button onclick="closeModal('viewTeamModal')"
+            class="absolute top-3 right-3 text-gray-500 text-xl font-bold">✕</button>
+
+    <div class="border-b pb-4 mb-4">
+      <h2 id="viewTeamName" class="text-2xl font-bold text-gray-800">Team Details</h2>
+      <p id="viewTeamDesc" class="text-gray-500 mt-1 text-sm italic"></p>
+      <div class="mt-2 text-sm">
+        <span class="font-semibold">Manager:</span> <span id="viewTeamManager" class="text-blue-600"></span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <div>
+        <h3 class="font-bold text-lg mb-2 text-gray-700">Team Members</h3>
+        <div class="bg-gray-50 rounded border p-3 max-h-60 overflow-y-auto">
+          <ul id="viewTeamMembers" class="space-y-2 text-sm">
+            </ul>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="font-bold text-lg mb-2 text-gray-700">Active Projects</h3>
+        <div class="bg-gray-50 rounded border max-h-60 overflow-y-auto">
+          <table class="min-w-full text-sm text-left">
+            <thead class="bg-gray-100 text-gray-600 font-medium border-b">
+              <tr>
+                <th class="px-3 py-2">Project</th>
+                <th class="px-3 py-2">Client</th>
+                <th class="px-3 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody id="viewTeamProjects">
+              </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mt-6 flex justify-end">
+      <button onclick="closeModal('viewTeamModal')"
+              class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-gray-700">
+        Close
+      </button>
+    </div>
+
+  </div>
+</div>
+
 <script>
   let allUsers = [];
 
+  /* ---------- TABS ---------- */
+  function showTab(tab) {
+    teamsTab.classList.toggle("hidden", tab !== "teams");
+    projectsTab.classList.toggle("hidden", tab !== "projects");
+
+    teamsTabBtn.classList.toggle("border-blue-600", tab === "teams");
+    projectsTabBtn.classList.toggle("border-blue-600", tab === "projects");
+
+    if (tab === "projects") loadProjects();
+  }
+
+  /* ---------- TEAMS ---------- */
   async function loadTeams() {
     const r = await fetch(`${API}/company/teams`, { headers });
     const teams = await r.json();
@@ -111,21 +209,98 @@
     teamsTable.innerHTML = "";
 
     teams.forEach(t => {
+      // Note: Added onclick="viewTeam(${t.id})" to the Team Name cell
       teamsTable.innerHTML += `
         <tr class="border-t hover:bg-gray-50">
-          <td class="p-3">${t.name}</td>
+          <td class="p-3">
+            <span onclick="viewTeam(${t.id})" 
+                  class="cursor-pointer text-blue-600 font-semibold hover:underline">
+              ${t.name}
+            </span>
+          </td>
           <td class="p-3">${t.manager_name || "-"}</td>
           <td class="p-3">${t.member_count}</td>
           <td class="p-3">${t.status}</td>
           <td class="p-3 space-x-2">
-            <button onclick="editTeam(${t.id})"
-                    class="text-blue-600">Edit</button>
-            <button onclick="archiveTeam(${t.id})"
-                    class="text-red-600">Archive</button>
+            <button onclick="editTeam(${t.id})" class="text-gray-600 hover:text-blue-600 text-sm border px-2 py-1 rounded">Edit</button>
+            <button onclick="archiveTeam(${t.id})" class="text-red-600 hover:text-red-800 text-sm border px-2 py-1 rounded">Archive</button>
           </td>
         </tr>
       `;
     });
+  }
+
+  // --- NEW: View Team Details Function ---
+  async function viewTeam(id) {
+    try {
+      const r = await fetch(`${API}/company/teams/${id}/details`, { headers });
+      if (!r.ok) throw new Error("Failed to load details");
+      const data = await r.json();
+
+      // Populate Header
+      document.getElementById('viewTeamName').textContent = data.team.name;
+      document.getElementById('viewTeamDesc').textContent = data.team.description || "No description provided.";
+      document.getElementById('viewTeamManager').textContent = data.team.manager_name || "Unassigned";
+
+      // Populate Members
+      const membersList = document.getElementById('viewTeamMembers');
+      membersList.innerHTML = "";
+      if (data.members.length === 0) {
+        membersList.innerHTML = `<li class="text-gray-400 italic">No members assigned.</li>`;
+      } else {
+        data.members.forEach(m => {
+          membersList.innerHTML += `
+            <li class="flex items-center gap-2 border-b last:border-0 pb-1">
+              <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">
+                ${m.name.substring(0,2).toUpperCase()}
+              </div>
+              <div>
+                <div class="font-medium text-gray-800">${m.name}</div>
+                <div class="text-xs text-gray-500">${m.email}</div>
+              </div>
+            </li>
+          `;
+        });
+      }
+
+      // Populate Projects
+      const projectsBody = document.getElementById('viewTeamProjects');
+      projectsBody.innerHTML = "";
+      if (data.projects.length === 0) {
+        projectsBody.innerHTML = `<tr><td colspan="3" class="p-3 text-center text-gray-400 italic">No projects assigned.</td></tr>`;
+      } else {
+        data.projects.forEach(p => {
+          projectsBody.innerHTML += `
+            <tr class="border-b last:border-0 hover:bg-gray-50">
+              <td class="px-3 py-2 font-medium text-gray-800">${p.project_name}</td>
+              <td class="px-3 py-2 text-gray-600">${p.client_name}</td>
+              <td class="px-3 py-2">
+                <span class="px-2 py-0.5 rounded text-xs ${getStatusColor(p.status)}">
+                  ${p.status || 'Active'}
+                </span>
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      // Show Modal
+      document.getElementById('viewTeamModal').classList.remove("hidden");
+      document.getElementById('viewTeamModal').classList.add("flex");
+
+    } catch (e) {
+      console.error(e);
+      alert("Error loading team details.");
+    }
+  }
+
+  function getStatusColor(status) {
+    if(!status) return "bg-gray-100 text-gray-600";
+    const s = status.toLowerCase();
+    if(s.includes('complete')) return "bg-green-100 text-green-700";
+    if(s.includes('progress')) return "bg-blue-100 text-blue-700";
+    if(s.includes('hold')) return "bg-yellow-100 text-yellow-700";
+    return "bg-gray-100 text-gray-600";
   }
 
   async function loadUsers() {
@@ -136,16 +311,11 @@
     membersList.innerHTML = "";
 
     allUsers.forEach(u => {
-      managerSelect.innerHTML += `
-        <option value="${u.id}">${u.name}</option>
-      `;
-
+      managerSelect.innerHTML += `<option value="${u.id}">${u.name}</option>`;
       membersList.innerHTML += `
         <label class="flex items-center gap-2 text-sm">
-          <input type="checkbox" value="${u.id}" />
-          ${u.name}
-        </label>
-      `;
+          <input type="checkbox" value="${u.id}" /> ${u.name}
+        </label>`;
     });
   }
 
@@ -155,10 +325,7 @@
     teamName.value = "";
     teamDesc.value = "";
     managerSelect.value = "";
-
-    document.querySelectorAll("#membersList input")
-      .forEach(cb => cb.checked = false);
-
+    document.querySelectorAll("#membersList input").forEach(cb => cb.checked = false);
     teamModal.classList.remove("hidden");
     teamModal.classList.add("flex");
   }
@@ -174,9 +341,7 @@
     managerSelect.value = t.manager_id || "";
 
     document.querySelectorAll("#membersList input")
-      .forEach(cb => {
-        cb.checked = t.members.some(m => m.user_id == cb.value);
-      });
+      .forEach(cb => cb.checked = t.members.some(m => m.user_id == cb.value));
 
     teamModal.classList.remove("hidden");
     teamModal.classList.add("flex");
@@ -194,33 +359,72 @@
     };
 
     const id = teamId.value;
-    const url = id
-      ? `${API}/company/teams/${id}`
-      : `${API}/company/teams`;
-
-    await fetch(url, {
+    await fetch(`${API}/company/teams${id ? "/" + id : ""}`, {
       method: id ? "PUT" : "POST",
       headers,
       body: JSON.stringify(payload)
     });
 
-    closeModal();
+    closeModal('teamModal');
     loadTeams();
   }
 
   async function archiveTeam(id) {
     if (!confirm("Archive this team?")) return;
-
-    await fetch(`${API}/company/teams/${id}`, {
-      method: "DELETE",
-      headers
-    });
-
+    await fetch(`${API}/company/teams/${id}`, { method: "DELETE", headers });
     loadTeams();
   }
 
-  function closeModal() {
-    teamModal.classList.add("hidden");
+  function closeModal(modalId) {
+    // Modified to accept an ID so it works for both modals
+    const id = modalId || 'teamModal'; 
+    document.getElementById(id).classList.add("hidden");
+    document.getElementById(id).classList.remove("flex");
+  }
+
+  /* ---------- PROJECTS TAB ---------- */
+  async function loadProjects() {
+    const r = await fetch(`${API}/company/projects/unassigned`, { headers });
+    const projects = await r.json();
+
+    projectsTable.innerHTML = "";
+
+    projects.forEach(p => {
+      projectsTable.innerHTML += `
+        <tr class="border-t">
+          <td class="p-3">${p.project_name}</td>
+          <td class="p-3">${p.client_name}</td>
+          <td class="p-3">${p.sales_owner}</td>
+          <td class="p-3">${p.notes || "-"}</td>
+          <td class="p-3">
+            <select onchange="assignTeam(${p.project_id}, this.value)"
+                    class="border rounded px-2 py-1">
+              <option value="">Assign</option>
+              ${document.querySelectorAll("#teamsTable tr").length
+                ? [...document.querySelectorAll("#teamsTable tr")].map(tr =>
+                    // Note: Adjusted regex to find the button's ID if needed, 
+                    // though usually the Assign logic uses existing DOM which is fine.
+                    // The viewTeam click is on the span, edit is on button. 
+                    // This logic remains safe.
+                    `<option value="${tr.querySelector("button").getAttribute("onclick").match(/\d+/)}">
+                      ${tr.children[0].innerText}
+                    </option>`
+                  ).join("")
+                : ""}
+            </select>
+          </td>
+        </tr>`;
+    });
+  }
+
+  async function assignTeam(project_id, team_id) {
+    if (!team_id) return;
+    await fetch(`${API}/company/projects/${project_id}/assign-team`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ team_id: parseInt(team_id) })
+    });
+    loadProjects();
   }
 
   loadUsers();

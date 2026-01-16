@@ -161,6 +161,11 @@ class LeadInteractionCreate(BaseModel):
     interaction_type: str
     description: str
     interaction_at: Optional[datetime] = None
+class AssignTeamPayload(BaseModel):
+    team_id: int
+
+
+
 # =====================================
 # AUTH DEPENDENCY
 # =====================================
@@ -1734,6 +1739,7 @@ def create_lead(
 
     cur.execute("""
         INSERT INTO leads (
+            company_id,
             client_name,
             contact_email,
             contact_phone,
@@ -1743,9 +1749,10 @@ def create_lead(
             created_by_user_id,
             next_follow_up_date
         )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
     """, (
+        user["company_id"],
         data.client_name,
         data.contact_email,
         data.contact_phone,
@@ -1755,6 +1762,7 @@ def create_lead(
         user["user_id"],
         data.next_follow_up_date
     ))
+
 
     lead_id = cur.fetchone()[0]
     conn.commit()
@@ -1777,12 +1785,13 @@ def get_all_leads(user=Depends(get_current_user)):
             l.status,
             l.next_follow_up_date,
             l.last_interaction_at,
-            u.name AS assigned_user
+            u.name
         FROM leads l
         JOIN users u ON u.id = l.assigned_employee_id
-        WHERE u.company_id = %s
+        WHERE l.company_id = %s
         ORDER BY l.created_at DESC
     """, (user["company_id"],))
+
 
     rows = cur.fetchall()
     cur.close()
@@ -1803,9 +1812,14 @@ def todays_followups(user=Depends(get_current_user)):
             next_follow_up_date,
             last_interaction_at
         FROM leads
-        WHERE assigned_employee_id = %s
-          AND next_follow_up_date = CURRENT_DATE
-    """, (user["user_id"],))
+        WHERE company_id = %s
+        AND assigned_employee_id = %s
+        AND next_follow_up_date = CURRENT_DATE
+    """, (
+        user["company_id"],
+        user["user_id"]
+    ))
+
 
     data = cur.fetchall()
     cur.close()
@@ -1822,6 +1836,21 @@ def update_lead(
     conn = get_db()
     cur = conn.cursor()
 
+    # Fetch current lead state
+    cur.execute("""
+        SELECT status, project_created
+        FROM leads
+        WHERE id = %s
+    """, (lead_id,))
+    lead = cur.fetchone()
+
+    if not lead:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    current_status, project_created = lead
+
     fields = []
     values = []
 
@@ -1833,26 +1862,45 @@ def update_lead(
         fields.append("assigned_employee_id = %s")
         values.append(data.assigned_user_id)
 
-    if data.next_follow_up_date:
+    if data.next_follow_up_date is not None:
         fields.append("next_follow_up_date = %s")
         values.append(data.next_follow_up_date)
 
-    if data.notes:
+    if data.notes is not None:
         fields.append("notes = %s")
         values.append(data.notes)
 
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
+    if fields:
+        values.append(lead_id)
+        cur.execute(f"""
+            UPDATE leads
+            SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, tuple(values))
 
-    values.append(lead_id)
+    # 🎯 CREATE PROJECT IF LEAD IS WON
+    if (
+        data.status == "Won"
+        and current_status != "Won"
+        and not project_created
+    ):
+        cur.execute("""
+            INSERT INTO projects (
+                company_id,
+                lead_id,
+                project_name
+            )
+            SELECT company_id, id, client_name
+            FROM leads
+            WHERE id = %s
+        """, (lead_id,))
 
-    query = f"""
-        UPDATE leads
-        SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """
+        cur.execute("""
+            UPDATE leads
+            SET project_created = TRUE
+            WHERE id = %s
+        """, (lead_id,))
 
-    cur.execute(query, tuple(values))
     conn.commit()
     cur.close()
     conn.close()
@@ -1922,6 +1970,169 @@ def get_lead_interactions(
     conn.close()
 
     return data
+
+@app.get("/company/projects/unassigned")
+def get_unassigned_projects(current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            p.id,
+            p.project_name,
+            l.id AS lead_id,
+            l.client_name,
+            u.name AS sales_owner,
+            l.notes,
+            p.created_at
+        FROM projects p
+        JOIN leads l ON l.id = p.lead_id
+        JOIN users u ON u.id = l.assigned_employee_id
+        WHERE p.company_id = %s
+          AND p.status = 'Unassigned'
+        ORDER BY p.created_at ASC
+    """, (current["company_id"],))
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "project_id": r[0],
+            "project_name": r[1],
+            "lead_id": r[2],
+            "client_name": r[3],
+            "sales_owner": r[4],
+            "notes": r[5],
+            "created_at": r[6]
+        }
+        for r in rows
+    ]
+
+@app.post("/company/projects/{project_id}/assign-team")
+def assign_team_to_project(
+    project_id: int,
+    data: AssignTeamPayload,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Ensure project belongs to company and is unassigned
+    cur.execute("""
+        SELECT id
+        FROM projects
+        WHERE id = %s
+          AND company_id = %s
+          AND status = 'Unassigned'
+    """, (project_id, current["company_id"]))
+
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Project not available for assignment")
+
+    # Assign team
+    cur.execute("""
+        UPDATE projects
+        SET assigned_team_id = %s,
+            status = 'Assigned',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (data.team_id, project_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Team assigned to project"}
+
+@app.get("/company/teams/{team_id}/details")
+def get_team_details(team_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # 1️⃣ Get Team Info + Manager
+    cur.execute("""
+        SELECT
+            t.id,
+            t.name,
+            t.description,
+            u.name AS manager_name
+        FROM teams t
+        LEFT JOIN users u ON u.id = t.manager_id
+        WHERE t.id = %s
+          AND t.company_id = %s
+    """, (team_id, current["company_id"]))
+
+    team = cur.fetchone()
+
+    if not team:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    team_info = {
+        "id": team[0],
+        "name": team[1],
+        "description": team[2],
+        "manager_name": team[3]
+    }
+
+    # 2️⃣ Get Team Members
+    cur.execute("""
+        SELECT
+            u.id,
+            u.name,
+            u.email
+        FROM team_members tm
+        JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = %s
+    """, (team_id,))
+
+    members = [
+        {
+            "id": r[0],
+            "name": r[1],
+            "email": r[2]
+        }
+        for r in cur.fetchall()
+    ]
+
+    # 3️⃣ Get Projects Assigned to This Team
+    cur.execute("""
+        SELECT
+            p.id,
+            p.project_name,
+            l.client_name,
+            p.status,
+            p.created_at
+        FROM projects p
+        LEFT JOIN leads l ON l.id = p.lead_id
+        WHERE p.assigned_team_id = %s
+          AND p.company_id = %s
+    """, (team_id, current["company_id"]))
+
+    projects = [
+        {
+            "id": r[0],
+            "project_name": r[1],
+            "client_name": r[2],
+            "status": r[3],
+            "created_at": r[4]
+        }
+        for r in cur.fetchall()
+    ]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "team": team_info,
+        "members": members,
+        "projects": projects
+    }
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "Frontend"
