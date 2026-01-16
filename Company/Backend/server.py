@@ -75,20 +75,24 @@ class CompanyLogin(BaseModel):
     emp_id: Optional[str] = None
     email: Optional[str] = None
     password: str
+
 class CreateUser(BaseModel):
     emp_id: str
     name: str
     email: Optional[str] = None
     password: str
     is_company_admin: bool = False
+
 class UpdateUserWithRoles(BaseModel):
     name: str
     email: Optional[str] = None
     status: str
     is_company_admin: bool
     role_ids: list[int] = []
+
 class CreateUserWithRoles(CreateUser):
     role_ids: Optional[list[int]] = []
+
 class CreateUserWithRoles(BaseModel):
     emp_id: str
     name: str
@@ -96,15 +100,18 @@ class CreateUserWithRoles(BaseModel):
     password: str
     is_company_admin: bool = False
     role_ids: list[int] = []
+
 class CreateRole(BaseModel):
     name: str
     description: Optional[str] = None
     feature_ids: list[int]
+
 class UpdateRole(BaseModel):
 
     name: str
     description: Optional[str] = None
     feature_ids: list[int]
+
 class UpdateUserProfile(BaseModel):
 
     phone: Optional[str] = None
@@ -119,31 +126,38 @@ class UpdateUserProfile(BaseModel):
 
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
+
 class ChangePassword(BaseModel):
     current_password: str
     new_password: str
+
 class MarkAttendance(BaseModel):
     user_id: int
     date: date
     status: str
+
 class ApplyLeave(BaseModel):
     leave_type: str
     start_date: date
     end_date: date
     reason: Optional[str] = None
+
 class ReviewLeave(BaseModel):
     status: str   # Approved | Rejected
     review_notes: Optional[str] = None
+
 class TeamCreate(BaseModel):
     name: str
     description: Optional[str] = None
     manager_id: Optional[int] = None
     member_ids: List[int] = []
+
 class TeamUpdate(BaseModel):
     name: str
     description: Optional[str] = None
     manager_id: Optional[int] = None
     member_ids: List[int] = []
+
 class LeadCreate(BaseModel):
     client_name: str
     contact_email: Optional[str] = None
@@ -152,17 +166,63 @@ class LeadCreate(BaseModel):
     assigned_user_id: int
     next_follow_up_date: Optional[date] = None
     notes: Optional[str] = None
+
 class LeadUpdate(BaseModel):
     status: Optional[str] = None
     assigned_user_id: Optional[int] = None
     next_follow_up_date: Optional[date] = None
     notes: Optional[str] = None
+
 class LeadInteractionCreate(BaseModel):
     interaction_type: str
     description: str
     interaction_at: Optional[datetime] = None
+
 class AssignTeamPayload(BaseModel):
     team_id: int
+
+class CreateProjectPlanning(BaseModel):
+    planned_start_date: date
+    planned_end_date: date
+    description: str
+    scope: Optional[str] = None
+
+    milestones: Optional[list] = []
+    deliverables: Optional[list] = []
+
+    estimated_budget: Optional[float] = None
+    priority: Optional[str] = None
+
+    client_requirements: Optional[str] = None
+    risk_notes: Optional[str] = None
+    assumptions: Optional[str] = None
+    dependencies: Optional[str] = None
+
+    client_review_checkpoints: Optional[list] = []
+    internal_notes: Optional[str] = None
+
+class ClientConfirmation(BaseModel):
+    client_name: str
+    confirmation_notes: Optional[str] = None
+
+
+class CreateTask(BaseModel):
+    title: str
+    description: Optional[str] = None
+    assigned_to: Optional[int] = None
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
+    estimated_effort_hours: Optional[int] = None
+    cost_impact: Optional[float] = None
+    priority: Optional[str] = None
+    dependency_task_id: Optional[int] = None
+
+class UpdateTaskStatus(BaseModel):
+    status: str  # In Progress | Review | Blocked
+    note: Optional[str] = None
+
+class ApproveTask(BaseModel):
+    approve: bool
 
 
 
@@ -175,8 +235,12 @@ def get_current_user(
     token = credentials.credentials
     payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
-    user_id = payload.get("sub")
-    company_id = payload.get("cid")
+    try:
+        user_id = int(payload.get("sub"))
+        company_id = int(payload.get("cid")) # Good practice to cast this too
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
     session_id = payload.get("sid")
 
     if not user_id or not company_id or not session_id:
@@ -230,6 +294,72 @@ def get_user_roles(conn, user_id):
     roles = [r[0] for r in cur.fetchall()]
     cur.close()
     return roles
+
+def get_project_and_role(conn, project_id, current):
+    cur = conn.cursor()
+
+    # Project + Team + Leader
+    cur.execute("""
+        SELECT 
+            p.id,
+            p.status,
+            t.manager_id
+        FROM projects p
+        JOIN teams t ON t.id = p.assigned_team_id
+        WHERE p.id = %s AND p.company_id = %s
+    """, (project_id, current["company_id"]))
+
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project_id, status, leader_id = row
+
+    is_leader = (leader_id == current["user_id"])
+    is_admin = current["is_company_admin"]
+
+    cur.close()
+    return status, is_leader, is_admin
+
+def get_task_and_project(conn, task_id, current):
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            t.id,
+            t.status,
+            t.assigned_to,
+            p.id,
+            p.status,
+            tm.manager_id
+        FROM project_tasks t
+        JOIN projects p ON p.id = t.project_id
+        JOIN teams tm ON tm.id = p.assigned_team_id
+        WHERE t.id = %s AND t.company_id = %s
+    """, (task_id, current["company_id"]))
+
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    (
+        task_id,
+        task_status,
+        assigned_to,
+        project_id,
+        project_status,
+        leader_id
+    ) = row
+
+    is_leader = (leader_id == current["user_id"])
+    is_assignee = (assigned_to == current["user_id"])
+    is_admin = current["is_company_admin"]
+
+    cur.close()
+    return task_status, project_status, is_leader, is_assignee, is_admin
+
 
 # ===============================================================
 # ===============================================================
@@ -2133,6 +2263,467 @@ def get_team_details(team_id: int, current=Depends(get_current_user)):
         "members": members,
         "projects": projects
     }
+
+@app.get("/projects")
+def list_projects(current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            p.id,
+            p.project_name,
+            p.status,
+            t.name AS team_name,
+            u.name AS leader_name
+        FROM projects p
+        JOIN teams t ON t.id = p.assigned_team_id
+        JOIN users u ON u.id = t.manager_id
+        WHERE p.company_id = %s
+        ORDER BY p.created_at DESC
+    """, (current["company_id"],))
+
+    projects = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": p[0],
+            "project_name": p[1],
+            "status": p[2],
+            "team": p[3],
+            "leader": p[4]
+        }
+        for p in projects
+    ]
+
+@app.get("/projects/{project_id}")
+def get_project_details(project_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            p.id,
+            p.project_name,
+            p.status,
+            t.name,
+            u.name
+        FROM projects p
+        JOIN teams t ON t.id = p.assigned_team_id
+        JOIN users u ON u.id = t.manager_id
+        WHERE p.id = %s AND p.company_id = %s
+    """, (project_id, current["company_id"]))
+
+    project = cur.fetchone()
+    if not project:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404)
+
+    cur.execute("""
+        SELECT
+            planned_start_date,
+            planned_end_date,
+            description,
+            scope,
+            milestones,
+            deliverables,
+            estimated_budget,
+            priority,
+            client_requirements,
+            risk_notes,
+            assumptions,
+            dependencies,
+            client_review_checkpoints,
+            internal_notes
+        FROM project_planning
+        WHERE project_id = %s
+    """, (project_id,))
+
+    planning = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "project": {
+            "id": project[0],
+            "name": project[1],
+            "status": project[2],
+            "team": project[3],
+            "leader": project[4]
+        },
+        "planning": planning
+    }
+
+@app.post("/projects/{project_id}/planning")
+def save_project_planning(
+    project_id: int,
+    data: CreateProjectPlanning,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+
+    status, is_leader, is_admin = get_project_and_role(conn, project_id, current)
+
+    if not is_leader:
+        raise HTTPException(status_code=403, detail="Only leader can plan project")
+
+    if status not in ["Assigned", "Planned"]:
+        raise HTTPException(status_code=400, detail="Planning is locked")
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO project_planning (
+            project_id, company_id,
+            planned_start_date, planned_end_date,
+            description, scope,
+            milestones, deliverables,
+            estimated_budget, priority,
+            client_requirements, risk_notes,
+            assumptions, dependencies,
+            client_review_checkpoints, internal_notes
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (project_id) DO UPDATE SET
+            planned_start_date = EXCLUDED.planned_start_date,
+            planned_end_date = EXCLUDED.planned_end_date,
+            description = EXCLUDED.description,
+            scope = EXCLUDED.scope,
+            milestones = EXCLUDED.milestones,
+            deliverables = EXCLUDED.deliverables,
+            estimated_budget = EXCLUDED.estimated_budget,
+            priority = EXCLUDED.priority,
+            client_requirements = EXCLUDED.client_requirements,
+            risk_notes = EXCLUDED.risk_notes,
+            assumptions = EXCLUDED.assumptions,
+            dependencies = EXCLUDED.dependencies,
+            client_review_checkpoints = EXCLUDED.client_review_checkpoints,
+            internal_notes = EXCLUDED.internal_notes,
+            updated_at = CURRENT_TIMESTAMP
+    """, (
+        project_id,
+        current["company_id"],
+        data.planned_start_date,
+        data.planned_end_date,
+        data.description,
+        data.scope,
+        data.milestones,
+        data.deliverables,
+        data.estimated_budget,
+        data.priority,
+        data.client_requirements,
+        data.risk_notes,
+        data.assumptions,
+        data.dependencies,
+        data.client_review_checkpoints,
+        data.internal_notes
+    ))
+
+    cur.execute("""
+        UPDATE projects
+        SET status = 'Planned'
+        WHERE id = %s
+    """, (project_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Project planning saved"}
+
+@app.post("/projects/{project_id}/start")
+def start_project(project_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+
+    status, is_leader, _ = get_project_and_role(conn, project_id, current)
+
+    if not is_leader:
+        raise HTTPException(status_code=403)
+
+    if status != "Planned":
+        raise HTTPException(status_code=400, detail="Project must be planned first")
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE projects
+        SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (project_id,))
+
+    cur.execute("""
+        INSERT INTO project_status_logs
+        (project_id, company_id, old_status, new_status, changed_by)
+        VALUES (%s,%s,%s,%s,%s)
+    """, (
+        project_id,
+        current["company_id"],
+        "Planned",
+        "In Progress",
+        current["user_id"]
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Project started"}
+
+@app.get("/projects/{project_id}/tasks")
+def list_project_tasks(project_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Ensure project belongs to company
+    cur.execute("""
+        SELECT id FROM projects
+        WHERE id = %s AND company_id = %s
+    """, (project_id, current["company_id"]))
+
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404)
+
+    cur.execute("""
+        SELECT
+            t.id,
+            t.title,
+            t.status,
+            u.name,
+            t.priority,
+            t.due_date
+        FROM project_tasks t
+        LEFT JOIN users u ON u.id = t.assigned_to
+        WHERE t.project_id = %s
+        ORDER BY t.created_at
+    """, (project_id,))
+
+    tasks = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": t[0],
+            "title": t[1],
+            "status": t[2],
+            "assigned_to": t[3],
+            "priority": t[4],
+            "due_date": t[5]
+        }
+        for t in tasks
+    ]
+
+@app.post("/projects/{project_id}/tasks")
+def create_task(
+    project_id: int,
+    data: CreateTask,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    status, is_leader, _ = get_project_and_role(conn, project_id, current)
+
+    if not is_leader:
+        raise HTTPException(status_code=403)
+
+    if status != "In Progress":
+        raise HTTPException(status_code=400, detail="Project not active")
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO project_tasks (
+            project_id,
+            company_id,
+            title,
+            description,
+            assigned_to,
+            created_by,
+            start_date,
+            due_date,
+            estimated_effort_hours,
+            cost_impact,
+            priority,
+            dependency_task_id,
+            status
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Active')
+    """, (
+        project_id,
+        current["company_id"],
+        data.title,
+        data.description,
+        data.assigned_to,
+        current["user_id"],
+        data.start_date,
+        data.due_date,
+        data.estimated_effort_hours,
+        data.cost_impact,
+        data.priority,
+        data.dependency_task_id
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Task created"}
+
+@app.post("/projects/{project_id}/tasks/suggest")
+def suggest_task(
+    project_id: int,
+    data: CreateTask,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    status, is_leader, _ = get_project_and_role(conn, project_id, current)
+
+    if is_leader:
+        raise HTTPException(status_code=400, detail="Leader should create task directly")
+
+    if status != "In Progress":
+        raise HTTPException(status_code=400)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO project_tasks (
+            project_id,
+            company_id,
+            title,
+            description,
+            created_by,
+            status
+        )
+        VALUES (%s,%s,%s,%s,%s,'Pending Approval')
+    """, (
+        project_id,
+        current["company_id"],
+        data.title,
+        data.description,
+        current["user_id"]
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Task suggestion submitted"}
+
+@app.post("/tasks/{task_id}/approve")
+def approve_task(
+    task_id: int,
+    data: ApproveTask,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    task_status, project_status, is_leader, _, _ = get_task_and_project(
+        conn, task_id, current
+    )
+
+    if not is_leader:
+        raise HTTPException(status_code=403)
+
+    if task_status != "Pending Approval":
+        raise HTTPException(status_code=400)
+
+    cur = conn.cursor()
+
+    if data.approve:
+        cur.execute("""
+            UPDATE project_tasks
+            SET status = 'Active'
+            WHERE id = %s
+        """, (task_id,))
+    else:
+        cur.execute("""
+            UPDATE project_tasks
+            SET status = 'Rejected'
+            WHERE id = %s
+        """, (task_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Task decision recorded"}
+
+@app.post("/tasks/{task_id}/status")
+def update_task_status(
+    task_id: int,
+    data: UpdateTaskStatus,
+    current=Depends(get_current_user)
+):
+    conn = get_db()
+    task_status, project_status, _, is_assignee, _ = get_task_and_project(
+        conn, task_id, current
+    )
+
+    if not is_assignee:
+        raise HTTPException(status_code=403)
+
+    if project_status != "In Progress":
+        raise HTTPException(status_code=400)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE project_tasks
+        SET status = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (data.status, task_id))
+
+    cur.execute("""
+        INSERT INTO task_updates
+        (task_id, company_id, updated_by, update_type, old_status, new_status, note)
+        VALUES (%s,%s,%s,'status_change',%s,%s,%s)
+    """, (
+        task_id,
+        current["company_id"],
+        current["user_id"],
+        task_status,
+        data.status,
+        data.note
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Task updated"}
+
+@app.post("/tasks/{task_id}/complete")
+def complete_task(task_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+    task_status, _, is_leader, _, _ = get_task_and_project(
+        conn, task_id, current
+    )
+
+    if not is_leader:
+        raise HTTPException(status_code=403)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE project_tasks
+        SET status = 'Done', updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (task_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Task marked as done"}
+
+
+
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "Frontend"

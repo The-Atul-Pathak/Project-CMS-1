@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Management OS | Project Planning</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    input, textarea, select { outline: none; }
+  </style>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("project_id");
+    if (!projectId) window.location.href = "projects.html";
+  </script>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen flex">
+
+<!-- SIDEBAR -->
+<aside class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col sticky top-0 h-screen">
+  <div class="p-6 flex items-center gap-3">
+    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">M</div>
+    <span class="text-lg font-bold">Management OS</span>
+  </div>
+
+  <nav class="flex-1 px-4 space-y-1">
+    <a href="/Project-CMS-1/Company/Frontend/projects.html" class="px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
+      ← Back to Projects
+    </a>
+  </nav>
+
+  <div class="p-4 border-t border-slate-100">
+    <button onclick="logout()" class="w-full px-3 py-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-medium">
+      Sign Out
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="flex-1">
+
+  <!-- TOP BAR -->
+  <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+    <div class="text-sm text-slate-500">
+      Delivery / <span class="text-slate-900 font-medium">Project Planning</span>
+    </div>
+    <div id="topBarUser" class="text-sm font-medium text-slate-700"></div>
+  </header>
+
+  <!-- CONTENT -->
+  <div class="p-8 max-w-4xl mx-auto">
+
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-slate-900">Project Planning</h1>
+      <p id="projectTitle" class="text-slate-500 mt-1"></p>
+    </div>
+
+    <form id="planningForm" class="space-y-8">
+
+      <!-- CORE INFO -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Core Information</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-slate-600">Planned Start Date</label>
+            <input type="date" id="startDate" required class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-600">Planned End Date</label>
+            <input type="date" id="endDate" required class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Project Description</label>
+          <textarea id="description" rows="3" required class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Scope</label>
+          <textarea id="scope" rows="2" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+      </section>
+
+      <!-- EXECUTION -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Execution Details</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="text-sm font-medium text-slate-600">Priority</label>
+            <select id="priority" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+              <option value="">Select</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm font-medium text-slate-600">Estimated Budget</label>
+            <input type="number" id="budget" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Client Requirements</label>
+          <textarea id="clientReq" rows="2" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+      </section>
+
+      <!-- RISK -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Risk & Dependencies</h2>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Risk Notes</label>
+          <textarea id="risk" rows="2" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Assumptions</label>
+          <textarea id="assumptions" rows="2" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-slate-600">Dependencies</label>
+          <textarea id="dependencies" rows="2" class="w-full mt-1 border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+      </section>
+
+      <!-- INTERNAL -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Internal Notes</h2>
+        <textarea id="internalNotes" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2"></textarea>
+      </section>
+
+      <!-- ACTIONS -->
+      <div class="flex justify-end gap-3">
+        <button type="button" onclick="goBack()"
+          class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100">
+          Cancel
+        </button>
+
+        <button type="submit"
+          class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+          Save Planning
+        </button>
+      </div>
+
+    </form>
+  </div>
+</main>
+
+<script>
+async function loadProject() {
+  try {
+    const meRes = await fetch(`${API}/company/me`, {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const me = await meRes.json();
+    document.getElementById("topBarUser").innerText = me.user.name;
+
+    const res = await fetch(`${API}/projects/${projectId}`, {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const data = await res.json();
+
+    document.getElementById("projectTitle").innerText = data.project.name;
+
+    if (data.planning) fillForm(data.planning);
+
+  } catch {
+    logout();
+  }
+}
+
+function fillForm(p) {
+  document.getElementById("startDate").value = p[0];
+  document.getElementById("endDate").value = p[1];
+  document.getElementById("description").value = p[2];
+  document.getElementById("scope").value = p[3] || "";
+  document.getElementById("budget").value = p[7] || "";
+  document.getElementById("priority").value = p[8] || "";
+  document.getElementById("clientReq").value = p[9] || "";
+  document.getElementById("risk").value = p[10] || "";
+  document.getElementById("assumptions").value = p[11] || "";
+  document.getElementById("dependencies").value = p[12] || "";
+  document.getElementById("internalNotes").value = p[14] || "";
+}
+
+document.getElementById("planningForm").onsubmit = async function(e) {
+  e.preventDefault();
+
+  const payload = {
+    planned_start_date: startDate.value,
+    planned_end_date: endDate.value,
+    description: description.value,
+    scope: scope.value,
+    estimated_budget: budget.value || null,
+    priority: priority.value || null,
+    client_requirements: clientReq.value,
+    risk_notes: risk.value,
+    assumptions: assumptions.value,
+    dependencies: dependencies.value,
+    internal_notes: internalNotes.value
+  };
+
+  const res = await fetch(`${API}/projects/${projectId}/planning`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (res.ok) {
+    alert("Planning saved");
+    window.location.href = `/Project-CMS-1/Company/Frontend/project_details.html?project_id=${projectId}`;
+  } else {
+    alert("Failed to save planning");
+  }
+};
+
+function goBack() {
+  window.location.href = `/Project-CMS-1/Company/Frontend/project_details.html?project_id=${projectId}`;
+}
+
+async function logout() {
+  try {
+    await fetch(`${API}/company/logout`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token }
+    });
+  } finally {
+    localStorage.removeItem("company_token");
+    window.location.href = "login.html";
+  }
+}
+
+loadProject();
+</script>
+
+</body>
+</html>
