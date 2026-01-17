@@ -123,7 +123,7 @@ function renderActions() {
   if (status === "Assigned") {
     bar.innerHTML = `
       <button onclick="goToPlanning()"
-        class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
         Plan Project
       </button>
     `;
@@ -132,12 +132,56 @@ function renderActions() {
   if (status === "Planned") {
     bar.innerHTML = `
       <button onclick="startProject()"
-        class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+        class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium">
         Start Project
       </button>
     `;
   }
+
+  if (status === "In Progress") {
+    bar.innerHTML = `
+      <button id="endProjectBtn"
+        onclick="endProject()"
+        class="px-4 py-2 bg-slate-900 text-white rounded-lg font-medium opacity-50 cursor-not-allowed">
+        End Project
+      </button>
+    `;
+    checkIfProjectCanEnd();
+  }
 }
+
+async function checkIfProjectCanEnd() {
+  const res = await fetch(`${API}/projects/${projectId}/tasks`, {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const tasks = await res.json();
+
+  const pending = tasks.some(t => t.status !== "Done");
+
+  const btn = document.getElementById("endProjectBtn");
+  if (!pending) {
+    btn.classList.remove("opacity-50", "cursor-not-allowed");
+    btn.classList.add("bg-red-600", "hover:bg-red-700");
+  }
+}
+
+async function endProject() {
+  if (!confirm("Are you sure you want to mark this project as completed?")) return;
+
+  const res = await fetch(`${API}/projects/${projectId}/complete`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token }
+  });
+
+  if (res.ok) {
+    alert("Project marked as completed");
+    window.location.href = "/projects.html";
+  } else {
+    const err = await res.json();
+    alert(err.detail || "Unable to complete project");
+  }
+}
+
 
 function renderOverview() {
   const p = projectData.project;

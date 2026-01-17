@@ -2721,6 +2721,66 @@ def complete_task(task_id: int, current=Depends(get_current_user)):
 
     return {"message": "Task marked as done"}
 
+@app.post("/projects/{project_id}/complete")
+def complete_project(project_id: int, current=Depends(get_current_user)):
+    conn = get_db()
+
+    status, is_leader, _ = get_project_and_role(conn, project_id, current)
+
+    if not is_leader:
+        raise HTTPException(status_code=403, detail="Only leader can complete project")
+
+    if status != "In Progress":
+        raise HTTPException(status_code=400, detail="Project not in progress")
+
+    cur = conn.cursor()
+
+    # Check if any task is not Done
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM project_tasks
+        WHERE project_id = %s
+          AND company_id = %s
+          AND status != 'Done'
+    """, (project_id, current["company_id"]))
+
+    remaining = cur.fetchone()[0]
+
+    if remaining > 0:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail="All tasks must be completed before ending project"
+        )
+
+    # Update project status
+    cur.execute("""
+        UPDATE projects
+        SET status = 'Completed', updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (project_id,))
+
+    # Log status change
+    cur.execute("""
+        INSERT INTO project_status_logs
+        (project_id, company_id, old_status, new_status, changed_by)
+        VALUES (%s,%s,%s,%s,%s)
+    """, (
+        project_id,
+        current["company_id"],
+        "In Progress",
+        "Completed",
+        current["user_id"]
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Project completed successfully"}
+
+
 
 
 

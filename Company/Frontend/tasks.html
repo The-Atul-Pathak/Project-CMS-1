@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Execution | Tasks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    
+    /* Scrollbar styling for horizontal board */
+    .kanban-container::-webkit-scrollbar { height: 8px; }
+    .kanban-container::-webkit-scrollbar-track { background: #f1f5f9; }
+    .kanban-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .kanban-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Task Card Styling */
+    .task-card { transition: all 0.2s; border-left: 4px solid transparent; }
+    .task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    
+    /* Priority Colors for Left Border */
+    .priority-High { border-left-color: #ef4444; }
+    .priority-Medium { border-left-color: #f59e0b; }
+    .priority-Low { border-left-color: #3b82f6; }
+
+    /* Modal Overlay */
+    .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+  </style>
+
+  <script>
+    const API = "http://127.0.0.1:9000";
+    const token = localStorage.getItem("company_token");
+    if (!token) window.location.href = "login.html";
+
+    // URL Param helper
+    const urlParams = new URLSearchParams(window.location.search);
+    const PROJECT_ID = urlParams.get('project_id');
+    if (!PROJECT_ID) alert("No Project ID specified");
+  </script>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col md:flex-row overflow-hidden">
+
+  <aside class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col h-screen z-20">
+    <div class="p-6 flex items-center gap-3">
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">M</div>
+      <span class="text-lg font-bold">Management OS</span>
+    </div>
+    <nav class="flex-1 px-4 space-y-1">
+      <a href="/Project-CMS-1/Company/Frontend/dashboard.html" class="flex items-center gap-3 px-3 py-2 text-slate-600 rounded-lg font-medium hover:bg-slate-50">Dashboard</a>
+      <div class="pt-4 space-y-1">
+        <p class="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Delivery</p>
+        <a href="/Project-CMS-1/Company/Frontend/projects.html" class="flex items-center gap-3 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium">Projects</a>
+      </div>
+    </nav>
+    <div class="p-4 border-t border-slate-100">
+      <button onclick="logout()" class="w-full flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg font-medium">Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 flex-shrink-0 z-10">
+      <div class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="/Project-CMS-1/Company/Frontend/projects.html" class="hover:text-blue-600">Projects</a> 
+        <span>/</span>
+        <span id="headerProjectName" class="text-slate-900 font-medium">Loading...</span>
+        <span id="headerProjectStatus" class="ml-2 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-500">...</span>
+      </div>
+      <div id="topBarUser" class="text-sm font-medium text-slate-700"></div>
+    </header>
+
+    <div class="px-6 lg:px-8 py-6 flex items-center justify-between flex-shrink-0">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Task Board</h1>
+        <p class="text-sm text-slate-500 mt-1">Manage execution flow.</p>
+      </div>
+      
+      <button id="createTaskBtn" onclick="openCreateModal()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <span id="createBtnText">Add Task</span>
+      </button>
+      
+      <div id="projectLockedMsg" class="hidden text-orange-600 bg-orange-50 px-3 py-2 rounded-lg text-sm font-medium border border-orange-200">
+        <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            Project not active. Tasks are locked.
+        </span>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-x-auto overflow-y-hidden px-6 lg:px-8 pb-6 kanban-container">
+      <div class="flex h-full gap-6" style="min-width: 1200px;">
+        
+        <div class="flex-1 flex flex-col min-w-[280px] bg-slate-100/50 rounded-xl border border-slate-200 h-full">
+            <div class="p-3 border-b border-slate-200 flex items-center justify-between bg-white rounded-t-xl">
+                <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">Pending Approval</span>
+                <span id="count-Pending" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div id="col-Pending" class="p-3 flex-1 overflow-y-auto space-y-3"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-w-[280px] bg-slate-100/50 rounded-xl border border-slate-200 h-full">
+            <div class="p-3 border-b border-slate-200 flex items-center justify-between bg-white rounded-t-xl">
+                <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">Active</span>
+                <span id="count-Active" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div id="col-Active" class="p-3 flex-1 overflow-y-auto space-y-3"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-w-[280px] bg-blue-50/50 rounded-xl border border-blue-100 h-full">
+            <div class="p-3 border-b border-blue-100 flex items-center justify-between bg-white rounded-t-xl">
+                <span class="text-xs font-bold uppercase text-blue-600 tracking-wider">In Progress</span>
+                <span id="count-InProgress" class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div id="col-InProgress" class="p-3 flex-1 overflow-y-auto space-y-3"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-w-[280px] bg-purple-50/50 rounded-xl border border-purple-100 h-full">
+            <div class="p-3 border-b border-purple-100 flex items-center justify-between bg-white rounded-t-xl">
+                <span class="text-xs font-bold uppercase text-purple-600 tracking-wider">Review</span>
+                <span id="count-Review" class="bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div id="col-Review" class="p-3 flex-1 overflow-y-auto space-y-3"></div>
+        </div>
+
+         <div class="flex-1 flex flex-col min-w-[280px] bg-slate-100/50 rounded-xl border border-slate-200 h-full">
+            <div class="p-3 border-b border-slate-200 flex items-center justify-between bg-white rounded-t-xl">
+                <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">Done</span>
+                <span id="count-Done" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+            </div>
+            <div id="col-Done" class="p-3 flex-1 overflow-y-auto space-y-3 opacity-70"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <div id="createModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 modal-backdrop" onclick="closeCreateModal()"></div>
+    <div class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl flex flex-col transition-transform transform translate-x-0">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-900" id="createModalTitle">Create New Task</h3>
+            <button onclick="closeCreateModal()" class="text-slate-400 hover:text-slate-600">&times;</button>
+        </div>
+        <div class="p-6 flex-1 overflow-y-auto space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
+                <input type="text" id="newTaskTitle" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                <textarea id="newTaskDesc" rows="3" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Due Date</label>
+                    <input type="date" id="newTaskDue" class="w-full border border-slate-300 rounded p-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Priority</label>
+                    <select id="newTaskPriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="assigneeWrapper">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Assign To (User ID)</label>
+                <input type="number" id="newTaskAssignee" placeholder="e.g. 5" class="w-full border border-slate-300 rounded p-2 text-sm">
+                <p class="text-xs text-slate-400 mt-1">Leave blank to assign later.</p>
+            </div>
+
+            <div id="suggestionNotice" class="hidden p-3 bg-blue-50 text-blue-700 text-sm rounded border border-blue-100">
+                As a team member, this task will be submitted for <strong>Approval</strong> before execution begins.
+            </div>
+        </div>
+        <div class="p-6 border-t border-slate-100 bg-slate-50">
+            <button onclick="submitNewTask()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg shadow-sm">Save Task</button>
+        </div>
+    </div>
+  </div>
+
+  <div id="detailModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 modal-backdrop" onclick="closeDetailModal()"></div>
+    <div class="absolute inset-0 m-auto max-w-lg h-fit max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        
+        <div class="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50">
+            <div>
+                <span id="detailStatus" class="text-xs font-bold px-2 py-1 rounded border mb-2 inline-block">STATUS</span>
+                <h2 id="detailTitle" class="text-xl font-bold text-slate-900 mt-1">Task Title</h2>
+            </div>
+            <button onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+        </div>
+
+        <div class="p-6 overflow-y-auto">
+            <div class="flex items-center gap-6 text-sm text-slate-600 mb-6">
+                <div>
+                    <span class="block text-xs font-bold text-slate-400 uppercase">Assigned To</span>
+                    <span id="detailAssignee" class="font-medium text-slate-800">--</span>
+                </div>
+                <div>
+                    <span class="block text-xs font-bold text-slate-400 uppercase">Due Date</span>
+                    <span id="detailDue" class="font-medium text-slate-800">--</span>
+                </div>
+                <div>
+                    <span class="block text-xs font-bold text-slate-400 uppercase">Priority</span>
+                    <span id="detailPriority" class="font-medium">--</span>
+                </div>
+            </div>
+
+            <div id="actionContainer" class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <h4 class="text-sm font-bold text-slate-900 mb-2">Update Status</h4>
+                <textarea id="actionNote" placeholder="Add a note (required for status updates)..." class="w-full border border-slate-300 rounded p-2 text-sm mb-3 focus:ring-1 focus:ring-blue-500"></textarea>
+                
+                <div class="flex flex-wrap gap-2" id="actionButtons">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+  </div>
+
+<script>
+    // Global State
+    let currentUser = null;
+    let currentProject = null;
+    let isLeader = false;
+    let activeTask = null; // For detail modal
+
+    async function init() {
+        try {
+            // 1. Get Me
+            const meRes = await fetch(`${API}/company/me`, { headers: { Authorization: "Bearer " + token } });
+            if(!meRes.ok) throw new Error("Auth failed");
+            const meData = await meRes.json();
+            currentUser = meData.user;
+            document.getElementById("topBarUser").innerText = currentUser.name;
+
+            // 2. Get Project Details (to determine role and status)
+            const pRes = await fetch(`${API}/projects`, { headers: { Authorization: "Bearer " + token } });
+            const projects = await pRes.json();
+            currentProject = projects.find(p => p.id == PROJECT_ID);
+
+            if (!currentProject) {
+                alert("Project not found or access denied.");
+                window.location.href = "/Project-CMS-1/Company/Frontend/projects.html";
+                return;
+            }
+
+            // Update UI Header
+            document.getElementById("headerProjectName").innerText = currentProject.project_name;
+            const statusBadge = document.getElementById("headerProjectStatus");
+            statusBadge.innerText = currentProject.status;
+            
+            // Color code header status
+            if(currentProject.status === "In Progress") statusBadge.className += " text-green-700 bg-green-50";
+            else statusBadge.className += " text-slate-600 bg-slate-100";
+
+            // Determine Role (Leader Name Match or Manager ID if available in your project object)
+            // *Assuming project object has 'leader' string name as per your reference code*
+            isLeader = (currentProject.leader === currentUser.name) || (currentProject.manager_id === currentUser.id);
+
+            setupPermissions();
+            loadTasks();
+
+        } catch (e) {
+            console.error(e);
+            logout();
+        }
+    }
+
+    function setupPermissions() {
+        const btn = document.getElementById("createTaskBtn");
+        const lockMsg = document.getElementById("projectLockedMsg");
+        const btnText = document.getElementById("createBtnText");
+        const suggestNotice = document.getElementById("suggestionNotice");
+        const assigneeField = document.getElementById("assigneeWrapper");
+
+        // Logic: Is Project Active?
+        const isActive = currentProject.status === "In Progress";
+
+        if (!isActive) {
+            btn.classList.add("hidden");
+            lockMsg.classList.remove("hidden");
+            return; 
+        }
+
+        // Project is Active
+        btn.classList.remove("hidden");
+        
+        if (isLeader) {
+            btnText.innerText = "Add Task";
+            assigneeField.classList.remove("hidden");
+            suggestNotice.classList.add("hidden");
+        } else {
+            // Team Member
+            btnText.innerText = "Suggest Task";
+            // Members can't assign others usually
+            assigneeField.classList.add("hidden"); 
+            suggestNotice.classList.remove("hidden");
+        }
+    }
+
+    async function loadTasks() {
+        const res = await fetch(`${API}/projects/${PROJECT_ID}/tasks`, {
+            headers: { Authorization: "Bearer " + token }
+        });
+        const tasks = await res.json();
+        renderBoard(tasks);
+    }
+
+    function renderBoard(tasks) {
+        // Clear columns
+        ['Pending', 'Active', 'InProgress', 'Review', 'Done'].forEach(k => {
+            document.getElementById(`col-${k}`).innerHTML = '';
+            document.getElementById(`count-${k}`).innerText = '0';
+        });
+
+        const statusMap = {
+            'Pending Approval': 'Pending',
+            'Active': 'Active',
+            'In Progress': 'InProgress',
+            'Review': 'Review',
+            'Done': 'Done',
+            'Rejected': 'Done' // Or hide it
+        };
+
+        tasks.forEach(task => {
+            const colKey = statusMap[task.status] || 'Active';
+            const col = document.getElementById(`col-${colKey}`);
+            
+            // Filter: If I am a member (not leader), I should generally focus on my tasks or unassigned ones
+            // But the prompt says "See tasks assigned to them (and optionally others)". We will show all for context.
+
+            const card = document.createElement("div");
+            card.className = `task-card bg-white p-4 rounded-lg border border-slate-200 shadow-sm cursor-pointer priority-${task.priority}`;
+            
+            // Check overdue
+            let dateHtml = `<span class="text-slate-500">${task.due_date || 'No Date'}</span>`;
+            if (task.due_date && new Date(task.due_date) < new Date() && task.status !== 'Done') {
+                dateHtml = `<span class="text-red-600 font-bold flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    ${task.due_date}
+                </span>`;
+            }
+
+            card.innerHTML = `
+                <h4 class="text-sm font-semibold text-slate-800 leading-tight mb-2">${task.title}</h4>
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1 text-slate-500">
+                        <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] text-slate-600 border border-slate-200">
+                            ${task.assigned_to ? task.assigned_to.charAt(0) : '?'}
+                        </span>
+                        <span>${task.assigned_to || 'Unassigned'}</span>
+                    </div>
+                    ${dateHtml}
+                </div>
+            `;
+            
+            card.onclick = () => openDetailModal(task);
+            col.appendChild(card);
+        });
+
+        // Update counts
+        ['Pending', 'Active', 'InProgress', 'Review', 'Done'].forEach(k => {
+            document.getElementById(`count-${k}`).innerText = document.getElementById(`col-${k}`).childElementCount;
+        });
+    }
+
+    // ================= ACTIONS =================
+
+    function openDetailModal(task) {
+        activeTask = task;
+        const modal = document.getElementById("detailModal");
+        
+        // Fill Data
+        document.getElementById("detailTitle").innerText = task.title;
+        document.getElementById("detailAssignee").innerText = task.assigned_to || "Unassigned";
+        document.getElementById("detailDue").innerText = task.due_date || "--";
+        document.getElementById("detailPriority").innerText = task.priority || "Normal";
+        
+        // Status Badge Style
+        const statusEl = document.getElementById("detailStatus");
+        statusEl.innerText = task.status;
+        statusEl.className = `text-xs font-bold px-2 py-1 rounded border mb-2 inline-block ${getStatusColors(task.status)}`;
+
+        // Render Action Buttons based on Role & State
+        renderActionButtons(task);
+
+        modal.classList.remove("hidden");
+    }
+
+    function renderActionButtons(task) {
+        const container = document.getElementById("actionButtons");
+        container.innerHTML = "";
+        
+        // If Project is not In Progress, View Only (unless Leader needs to cleanup)
+        if (currentProject.status !== "In Progress") {
+            container.innerHTML = `<span class="text-xs text-slate-500 italic">Project is not active. Actions locked.</span>`;
+            return;
+        }
+
+        const isAssignee = (task.assigned_to === currentUser.name); // Comparing names based on list API
+
+        // 1. Pending Approval
+        if (task.status === "Pending Approval") {
+            if (isLeader) {
+                container.innerHTML += `<button onclick="handleApproval(true)" class="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700">Approve</button>`;
+                container.innerHTML += `<button onclick="handleApproval(false)" class="bg-red-100 text-red-700 px-3 py-1.5 rounded text-sm hover:bg-red-200">Reject</button>`;
+            } else {
+                container.innerHTML = `<span class="text-xs text-slate-500">Waiting for leader approval.</span>`;
+            }
+        }
+
+        // 2. Active (ToDo)
+        else if (task.status === "Active") {
+            if (isAssignee || isLeader) {
+                container.innerHTML += `<button onclick="updateStatus('In Progress')" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">Start Task</button>`;
+            }
+        }
+
+        // 3. In Progress
+        else if (task.status === "In Progress") {
+            if (isAssignee || isLeader) {
+                container.innerHTML += `<button onclick="updateStatus('Review')" class="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700">Submit for Review</button>`;
+                container.innerHTML += `<button onclick="updateStatus('Blocked')" class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded text-sm hover:bg-red-100">Block</button>`;
+            }
+        }
+
+        // 4. Review
+        else if (task.status === "Review") {
+            if (isLeader) {
+                container.innerHTML += `<button onclick="completeTask()" class="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700">Mark Done</button>`;
+                container.innerHTML += `<button onclick="updateStatus('In Progress')" class="bg-yellow-500 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-600">Send Back (Reject)</button>`;
+            } else {
+                container.innerHTML = `<span class="text-xs text-slate-500">Under review by leader.</span>`;
+            }
+        }
+
+        // 5. Done
+        else if (task.status === "Done") {
+            container.innerHTML = `<span class="text-xs text-green-600 font-bold flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Completed
+            </span>`;
+        }
+    }
+
+    async function handleApproval(approve) {
+        try {
+            const res = await fetch(`${API}/tasks/${activeTask.id}/approve`, {
+                method: "POST",
+                headers: { 
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ approve: approve })
+            });
+            if(!res.ok) throw new Error("Action failed");
+            closeDetailModal();
+            loadTasks();
+        } catch(e) { alert("Error processing approval"); }
+    }
+
+    async function updateStatus(newStatus) {
+        const note = document.getElementById("actionNote").value;
+        if (!note && newStatus !== 'Active') {
+            // Force note for accountability except for simple start
+            alert("Please add a note to explain this update.");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API}/tasks/${activeTask.id}/status`, {
+                method: "POST",
+                headers: { 
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ status: newStatus, note: note })
+            });
+            if(!res.ok) throw new Error("Update failed");
+            closeDetailModal();
+            loadTasks();
+        } catch(e) { alert("Error updating task. Are you the assignee?"); }
+    }
+
+    async function completeTask() {
+        try {
+            const res = await fetch(`${API}/tasks/${activeTask.id}/complete`, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + token }
+            });
+            if(!res.ok) throw new Error("Failed");
+            closeDetailModal();
+            loadTasks();
+        } catch(e) { alert("Error marking done"); }
+    }
+
+    async function submitNewTask() {
+        const title = document.getElementById("newTaskTitle").value;
+        const assignedTo = document.getElementById("newTaskAssignee").value; // ID
+        
+        // Payload construction
+        const payload = {
+            title: title,
+            description: document.getElementById("newTaskDesc").value,
+            due_date: document.getElementById("newTaskDue").value || null,
+            priority: document.getElementById("newTaskPriority").value,
+            assigned_to: assignedTo ? parseInt(assignedTo) : null
+        };
+
+        if(!title) return alert("Title is required");
+
+        let endpoint = isLeader 
+            ? `${API}/projects/${PROJECT_ID}/tasks`
+            : `${API}/projects/${PROJECT_ID}/tasks/suggest`;
+
+        try {
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers: { 
+                    "Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+            if(!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || "Failed");
+            }
+            closeCreateModal();
+            loadTasks();
+        } catch(e) { alert(e.message); }
+    }
+
+    // ================= HELPERS =================
+
+    function getStatusColors(status) {
+        if(status === 'Pending Approval') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        if(status === 'Active') return 'bg-slate-100 text-slate-700 border-slate-200';
+        if(status === 'In Progress') return 'bg-blue-100 text-blue-800 border-blue-200';
+        if(status === 'Review') return 'bg-purple-100 text-purple-800 border-purple-200';
+        if(status === 'Done') return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-gray-100 text-gray-800';
+    }
+
+    function openCreateModal() { 
+        document.getElementById("createModal").classList.remove("hidden"); 
+    }
+    function closeCreateModal() { 
+        document.getElementById("createModal").classList.add("hidden"); 
+    }
+    function closeDetailModal() { 
+        document.getElementById("detailModal").classList.add("hidden"); 
+        document.getElementById("actionNote").value = "";
+    }
+    async function logout() {
+        localStorage.removeItem("company_token");
+        window.location.href = "/Project-CMS-1/Company/Frontend/login.html";
+    }
+
+    init();
+</script>
+
+</body>
+</html>
